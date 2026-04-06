@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+        <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <EmbeddedResource Include="Native\libcimgui.so" />
+        <EmbeddedResource Include="Assets\icon.png" />
+        <EmbeddedResource Include="Assets\JetBrainsMonoNerdFontMono-Regular.ttf" />
+    </ItemGroup>
+
+</Project>
