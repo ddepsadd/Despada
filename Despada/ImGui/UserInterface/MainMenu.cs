@@ -28,8 +28,8 @@ public static class MainMenu
 
     private static int _activeTab;
 
-    private const float WinW = 900f;
-    private const float WinH = 600f;
+    private const float WinW = 1200f;
+    private const float WinH = 800f;
 
     private const float Pad         = 10f;
     private const float Gap         = 8f;
@@ -38,7 +38,7 @@ public static class MainMenu
     private const float IslandRound = 10f;
     private const float IconScale   = 1.5f;
 
-    private static readonly uint WinBg    = Theme.ToU32(Theme.HexA(0x000000, 0.25f));
+    private static readonly uint WinBg    = Theme.ToU32(Theme.HexA(0x000000, 0.50f));
     private static readonly uint IslandBg = Theme.ToU32(Theme.HexA(0x06060C, 0.75f));
 
     private static bool _firstFrame = true;
@@ -56,7 +56,7 @@ public static class MainMenu
 
         ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, IslandRound);
-        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.WindowBg, Theme.HexA(0x000000, 0.25f));
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.WindowBg, Theme.HexA(0x000000, 0.5f));
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Border, Theme.HexA(0x000000, 0f));
 
         var flags = ImGuiWindowFlags.NoTitleBar
