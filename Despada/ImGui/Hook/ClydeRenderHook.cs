@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 
+namespace Despada.ImGui.Hook;
 [HarmonyPatch]
 public static class ClydeRenderHook
 {

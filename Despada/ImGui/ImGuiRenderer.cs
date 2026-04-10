@@ -2,9 +2,12 @@ using System.Collections.Concurrent;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Despada.ImGui.Hook;
+using Despada.ImGui.UserInterface;
 using HarmonyLib;
 using ImGuiNET;
 
+namespace Despada.ImGui;
 public record struct Toast(string Title, string Body, float TimeLeft);
 
 public static class ImGuiRenderer
@@ -83,7 +86,7 @@ public static class ImGuiRenderer
             var elapsedSec = (float)_stopwatch.Elapsed.TotalSeconds;
             _stopwatch.Restart();
 
-            var io = ImGui.GetIO();
+            var io = ImGuiNET.ImGui.GetIO();
             io.DisplaySize             = new Vector2(_screenW, _screenH);
             io.DisplayFramebufferScale = new Vector2(1f, 1f);
             io.DeltaTime               = Math.Clamp(elapsedSec, 0.0001f, 0.1f);
@@ -93,7 +96,7 @@ public static class ImGuiRenderer
             GlStateGuard.Save();
             try
             {
-                ImGui.NewFrame();
+                ImGuiNET.ImGui.NewFrame();
 
                 ImGuiInputHook.SnapshotWantCapture();
 
@@ -104,8 +107,8 @@ public static class ImGuiRenderer
                 if (OverlayVisible)
                     DrawUI();
 
-                ImGui.Render();
-                RenderDrawData(ImGui.GetDrawData());
+                ImGuiNET.ImGui.Render();
+                RenderDrawData(ImGuiNET.ImGui.GetDrawData());
             }
             finally
             {
@@ -192,9 +195,9 @@ public static class ImGuiRenderer
         const float Height    = 64f;
         const float FadeTime  = 0.6f;
 
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 7f);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(10f, 6f));
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 7f);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(10f, 6f));
 
         float y = _screenH - PadY;
 
@@ -205,9 +208,9 @@ public static class ImGuiRenderer
 
             float alpha = Math.Min(1f, toast.TimeLeft / FadeTime);
 
-            ImGui.SetNextWindowPos(new Vector2(_screenW - Width - PadX, y), ImGuiCond.Always);
-            ImGui.SetNextWindowSize(new Vector2(Width, Height), ImGuiCond.Always);
-            ImGui.SetNextWindowBgAlpha(0.88f * alpha);
+            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(_screenW - Width - PadX, y), ImGuiCond.Always);
+            ImGuiNET.ImGui.SetNextWindowSize(new Vector2(Width, Height), ImGuiCond.Always);
+            ImGuiNET.ImGui.SetNextWindowBgAlpha(0.88f * alpha);
 
             var flags = ImGuiWindowFlags.NoDecoration
                       | ImGuiWindowFlags.NoInputs
@@ -216,22 +219,22 @@ public static class ImGuiRenderer
                       | ImGuiWindowFlags.NoSavedSettings
                       | ImGuiWindowFlags.NoBringToFrontOnFocus;
 
-            if (ImGui.Begin($"##toast_{i}", flags))
+            if (ImGuiNET.ImGui.Begin($"##toast_{i}", flags))
             {
-                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.85f, 0.2f, alpha));
-                ImGui.TextUnformatted(toast.Title);
-                ImGui.PopStyleColor();
+                ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.85f, 0.2f, alpha));
+                ImGuiNET.ImGui.TextUnformatted(toast.Title);
+                ImGuiNET.ImGui.PopStyleColor();
 
-                ImGui.Separator();
+                ImGuiNET.ImGui.Separator();
 
-                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 1f, 1f, alpha * 0.9f));
-                ImGui.TextWrapped(toast.Body);
-                ImGui.PopStyleColor();
+                ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 1f, 1f, alpha * 0.9f));
+                ImGuiNET.ImGui.TextWrapped(toast.Body);
+                ImGuiNET.ImGui.PopStyleColor();
             }
-            ImGui.End();
+            ImGuiNET.ImGui.End();
         }
 
-        ImGui.PopStyleVar(3);
+        ImGuiNET.ImGui.PopStyleVar(3);
     }
 
     private static void Initialize()
@@ -241,9 +244,9 @@ public static class ImGuiRenderer
             MarseyLogger.Info($"[ImGuiRenderer] Initializing ImGui at {_screenW}x{_screenH}...");
             NativeLoader.EnsureLoaded();
 
-            ImGui.CreateContext();
+            ImGuiNET.ImGui.CreateContext();
 
-            var io = ImGui.GetIO();
+            var io = ImGuiNET.ImGui.GetIO();
             io.DisplaySize             = new Vector2(_screenW, _screenH);
             io.DisplayFramebufferScale = new Vector2(1f, 1f);
 
@@ -260,10 +263,10 @@ public static class ImGuiRenderer
             io.Fonts.SetTexID(_fontTextureId);
             io.Fonts.ClearTexData();
 
-            ImGui.GetStyle().ScaleAllSizes(scale);
+            ImGuiNET.ImGui.GetStyle().ScaleAllSizes(scale);
 
             CreateGlObjects();
-
+            Theme.Apply();
             MarseyLogger.Info("[ImGuiRenderer] ImGui initialized successfully.");
             _initialized = true;
         }
@@ -454,51 +457,14 @@ public static class ImGuiRenderer
 
     private static void DrawUI()
     {
-        if (ShowDemoWindow)
-            ImGui.ShowDemoWindow(ref ShowDemoWindow);
-
-        ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiCond.Always);
-        ImGui.SetNextWindowBgAlpha(0.85f);
-
-        if (ImGui.Begin("## status",
-                ImGuiWindowFlags.NoDecoration |
-                ImGuiWindowFlags.NoInputs     |
-                ImGuiWindowFlags.NoNav        |
-                ImGuiWindowFlags.NoMove       |
-                ImGuiWindowFlags.AlwaysAutoResize))
-        {
-            ImGui.TextColored(new Vector4(0.4f, 1f, 0.4f, 1f), "Render Hook: ACTIVE");
-            ImGui.Text($"Screen: {_screenW}x{_screenH}");
-        }
-        ImGui.End();
-
-        ImGui.SetNextWindowPos(new Vector2(10, 80), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowBgAlpha(0.85f);
-
-        if (ImGui.Begin("Despada Dev"))
-        {
-            if (ImGui.Button("Test Toast (3s)"))
-                ShowToast("Тест", "Уведомление работает! 🎉", 3f);
-
-            ImGui.SameLine();
-            if (ImGui.Button("Test Long (8s)"))
-                ShowToast("Долгое уведомление", "Это уведомление живёт 8 секунд.", 8f);
-
-            ImGui.SameLine();
-            if (ImGui.Button("Spam (x5)"))
-            {
-                for (int i = 1; i <= 5; i++)
-                    ShowToast($"Уведомление #{i}", $"Тест стека уведомлений #{i}", 4f);
-            }
-        }
-        ImGui.End();
+        MainMenu.Draw();
     }
 
     public static void Shutdown()
     {
         if (!_initialized) return;
         if (_fontDataHandle.IsAllocated) _fontDataHandle.Free();
-        ImGui.DestroyContext();
+        ImGuiNET.ImGui.DestroyContext();
         _initialized = false;
         MarseyLogger.Info("[ImGuiRenderer] Shutdown complete.");
         NativeLoader.Cleanup();

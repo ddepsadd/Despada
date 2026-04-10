@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 
+namespace Despada.ImGui;
 internal static unsafe class GlBackend
 {
     private const string LibGL = "libGL.so.1";

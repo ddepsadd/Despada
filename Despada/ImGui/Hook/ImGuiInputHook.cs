@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using HarmonyLib;
 using ImGuiNET;
 
+namespace Despada.ImGui.Hook;
+
 [HarmonyPatch]
 public static class ImGuiInputHook
 {
@@ -22,7 +24,7 @@ public static class ImGuiInputHook
             while (_ioQueue.TryDequeue(out _)) { }
             return;
         }
-        var io = ImGui.GetIO();
+        var io = ImGuiNET.ImGui.GetIO();
         while (_ioQueue.TryDequeue(out var action))
             action(io);
     }
@@ -35,7 +37,7 @@ public static class ImGuiInputHook
             WantCaptureKeyboard = false;
             return;
         }
-        var io = ImGui.GetIO();
+        var io = ImGuiNET.ImGui.GetIO();
         WantCaptureMouse = io.WantCaptureMouse;
         WantCaptureKeyboard = io.WantCaptureKeyboard;
     }

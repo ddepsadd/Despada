@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
+namespace Despada.ImGui;
 internal static class NativeLoader
 {
     private static string? _tempDir;

@@ -1,6 +1,6 @@
-
 using System.Runtime.InteropServices;
 
+namespace Despada.ImGui.Hook;
 internal static class GlStateGuard
 {
     private const string LibGL_Win   = "opengl32.dll";
@@ -108,7 +108,7 @@ internal static class GlStateGuard
         public int  LastBlendSrcRGB, LastBlendDstRGB, LastBlendSrcAlpha, LastBlendDstAlpha;
         public int  LastBlendEqRGB, LastBlendEqAlpha, LastPolygonMode;
         public bool BlendEnabled, ScissorEnabled, DepthEnabled, CullEnabled, StencilEnabled;
-        public bool SrgbEnabled; // ← новое
+        public bool SrgbEnabled; 
     }
 
     [ThreadStatic] private static GlSnapshot _snapshot;

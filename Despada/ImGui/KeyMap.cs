@@ -1,5 +1,6 @@
 using ImGuiNET;
 
+namespace Despada.ImGui;
 internal static class KeyMap
 {
     private static readonly ImGuiKey[] _table = BuildTable();
