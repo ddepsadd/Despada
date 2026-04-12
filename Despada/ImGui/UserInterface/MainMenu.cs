@@ -25,20 +25,17 @@ public static class MainMenu
 
     private static int _activeTab;
     private static int _activeSubTab;
+
+    private const float WinW     = 1100f;
+    private const float WinH     = 740f;
+    private const float SidebarW = 210f;
+    private const float TabH     = 56f;
+    private const float TopBarH  = 52f;
+    private const float IconScale = 1.5f;
+    private const float ColumnGap = 12f;
     
-    private const float WinW     = 1000f;
-    private const float WinH     = 700f;
-    private const float SidebarW = 170f;
-    private const float TabH     = 52f;
-    private const float TopBarH  = 48f;
-    private const float IconScale = 1.3f;
-    private const float ColumnGap = 10f;
-    
-    private static readonly uint SidebarBg   = Theme.ToU32(Theme.Hex(0x070712));
-    private static readonly uint SepLine     = Theme.ToU32(Theme.HexA(0x9B30FF, 0.10f));
-    private static readonly uint GlowPrimary = Theme.ToU32(Theme.HexA(0x6B2FD6, 0.08f));
-    private static readonly uint GlowAccent  = Theme.ToU32(Theme.HexA(0xFF3090, 0.06f));
-    private static readonly uint GlowNone    = Theme.ToU32(Theme.HexA(0x000000, 0.00f));
+    private static readonly uint SidebarBg = Theme.ToU32(Theme.Hex(0x0A0A0E));
+    private static readonly uint SepLine   = Theme.ToU32(Theme.HexA(0xFFFFFF, 0.08f));
 
     private static bool _firstFrame = true;
 
@@ -55,8 +52,8 @@ public static class MainMenu
 
         ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 10f);
-        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.WindowBg, Theme.Hex(0x060610));
-        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Border, Theme.HexA(0x9B30FF, 0.08f));
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.WindowBg, Theme.Hex(0x08080C));
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Border, Theme.HexA(0xFFFFFF, 0.06f));
 
         var flags = ImGuiWindowFlags.NoTitleBar
                   | ImGuiWindowFlags.NoCollapse
@@ -81,19 +78,11 @@ public static class MainMenu
 
         Widgets.ResetFrame();
 
-        DrawGlow(dl, winPos);
         DrawSidebar(dl, winPos, font);
         DrawTopBar(dl, winPos, font);
         DrawContent();
 
         ImGuiNET.ImGui.End();
-    }
-
-    private static void DrawGlow(ImDrawListPtr dl, Vector2 wp)
-    {
-        dl.AddRectFilledMultiColor(wp,
-            new Vector2(wp.X + WinW, wp.Y + WinH),
-            GlowPrimary, GlowNone, GlowAccent, GlowNone);
     }
 
     private static void DrawSidebar(ImDrawListPtr dl, Vector2 wp, ImFontPtr font)
@@ -105,25 +94,30 @@ public static class MainMenu
 
         dl.AddLine(new Vector2(max.X, wp.Y + 6f), new Vector2(max.X, max.Y - 6f), SepLine);
 
-        var bf = font.FontSize * 1.4f;
-        var bs = font.CalcTextSizeA(bf, float.MaxValue, 0f, "Despada");
-        dl.AddText(font, bf,
-            new Vector2(wp.X + (SidebarW - bs.X) * 0.5f, wp.Y + (TopBarH - bs.Y) * 0.5f),
-            Theme.ToU32(Theme.Cyan), "Despada");
+        var bf = font.FontSize * 1.6f;
+        var brandText = "DESPADA";
+        var bs = font.CalcTextSizeA(bf, float.MaxValue, 0f, brandText);
+        Widgets.DrawGradientText(dl, font, bf,
+            new Vector2(wp.X + (SidebarW - bs.X) * 0.5f - 2f, wp.Y + (TopBarH - bs.Y) * 0.5f),
+            brandText, Theme.Violet, Theme.Cyan, Theme.Magenta, 0.18f);
 
         dl.AddLine(
-            new Vector2(wp.X + 12f, wp.Y + TopBarH),
-            new Vector2(max.X - 12f, wp.Y + TopBarH),
+            new Vector2(wp.X + 16f, wp.Y + TopBarH),
+            new Vector2(max.X - 16f, wp.Y + TopBarH),
             SepLine);
 
         var ifs = font.FontSize * IconScale;
-        var ty  = wp.Y + TopBarH + 8f;
+        var ty  = wp.Y + TopBarH + 12f;
 
         for (int i = 0; i < TabIcons.Length; i++)
             SidebarTab(dl, font, ifs, wp, ty + TabH * i, TabIcons[i], TabLabels[i], i);
 
         SidebarTab(dl, font, ifs, wp, max.Y - TabH, SettingsIcon, SettingsLabel, SettingsIndex);
     }
+
+    private static readonly uint BarTop    = Theme.ToU32(Theme.Violet);
+    private static readonly uint BarMid    = Theme.ToU32(Theme.Cyan);
+    private static readonly uint BarBottom = Theme.ToU32(Theme.Magenta);
 
     private static void SidebarTab(ImDrawListPtr dl, ImFontPtr font, float fs,
         Vector2 wp, float y, string icon, string label, int idx)
@@ -139,16 +133,31 @@ public static class MainMenu
         else if (hovered) dl.AddRectFilled(tMin, tMax, Theme.ToU32(Theme.BgHover));
 
         if (active)
-            dl.AddRectFilled(new Vector2(tMin.X, tMin.Y + 8f),
-                new Vector2(tMin.X + 3f, tMax.Y - 8f), Theme.ToU32(Theme.Cyan), 2f);
+        {
+            var barL = new Vector2(tMin.X, tMin.Y + 8f);
+            var barLMax = new Vector2(tMin.X + 3f, tMax.Y - 8f);
+            var barMidY = (barL.Y + barLMax.Y) * 0.5f;
+            dl.AddRectFilledMultiColor(barL, new Vector2(barLMax.X, barMidY),
+                BarTop, BarTop, BarMid, BarMid);
+            dl.AddRectFilledMultiColor(new Vector2(barL.X, barMidY), barLMax,
+                BarMid, BarMid, BarBottom, BarBottom);
+
+            var barR = new Vector2(tMax.X - 2f, tMin.Y + 8f);
+            var barRMax = new Vector2(tMax.X, tMax.Y - 8f);
+            var barRMidY = (barR.Y + barRMax.Y) * 0.5f;
+            dl.AddRectFilledMultiColor(barR, new Vector2(barRMax.X, barRMidY),
+                BarTop, BarTop, BarMid, BarMid);
+            dl.AddRectFilledMultiColor(new Vector2(barR.X, barRMidY), barRMax,
+                BarMid, BarMid, BarBottom, BarBottom);
+        }
 
         var ic = active ? Theme.Cyan : hovered ? Theme.TextPrimary : Theme.TextSecondary;
         var isz = font.CalcTextSizeA(fs, float.MaxValue, 0f, icon);
-        dl.AddText(font, fs, new Vector2(tMin.X + 18f, tMin.Y + (TabH - isz.Y) * 0.5f), Theme.ToU32(ic), icon);
+        dl.AddText(font, fs, new Vector2(tMin.X + 24f, tMin.Y + (TabH - isz.Y) * 0.5f), Theme.ToU32(ic), icon);
 
         var lc = active || hovered ? Theme.TextPrimary : Theme.TextSecondary;
         var lsz = ImGuiNET.ImGui.CalcTextSize(label);
-        dl.AddText(new Vector2(tMin.X + 18f + isz.X + 12f, tMin.Y + (TabH - lsz.Y) * 0.5f), Theme.ToU32(lc), label);
+        dl.AddText(new Vector2(tMin.X + 24f + isz.X + 14f, tMin.Y + (TabH - lsz.Y) * 0.5f), Theme.ToU32(lc), label);
 
         if (clicked && idx != _activeTab) { _activeTab = idx; _activeSubTab = 0; }
     }
@@ -161,12 +170,13 @@ public static class MainMenu
         dl.AddLine(new Vector2(bMin.X + 8f, bMax.Y), new Vector2(bMax.X - 8f, bMax.Y), SepLine);
 
         var subs = SubTabs[_activeTab];
-        var sx   = bMin.X + 20f;
+        var sx   = bMin.X + 24f;
+        var subFs = font.FontSize * 1.05f;
 
         for (int i = 0; i < subs.Length; i++)
         {
-            var tsz = ImGuiNET.ImGui.CalcTextSize(subs[i]);
-            var tw  = tsz.X + 32f;
+            var tsz = font.CalcTextSizeA(subFs, float.MaxValue, 0f, subs[i]);
+            var tw  = tsz.X + 40f;
             var tMin = new Vector2(sx, bMin.Y);
             var tMax = new Vector2(sx + tw, bMax.Y);
 
@@ -174,7 +184,7 @@ public static class MainMenu
             bool hovered = ImGuiNET.ImGui.IsMouseHoveringRect(tMin, tMax);
 
             var c = active || hovered ? Theme.TextPrimary : Theme.TextSecondary;
-            dl.AddText(
+            dl.AddText(font, subFs,
                 new Vector2(tMin.X + (tw - tsz.X) * 0.5f, tMin.Y + (TopBarH - tsz.Y) * 0.5f),
                 Theme.ToU32(c), subs[i]);
 
@@ -182,8 +192,9 @@ public static class MainMenu
             {
                 var lw = tsz.X * 0.6f;
                 var lx = tMin.X + (tw - lw) * 0.5f;
-                dl.AddRectFilled(new Vector2(lx, bMax.Y - 3f), new Vector2(lx + lw, bMax.Y),
-                    Theme.ToU32(Theme.Cyan), 1.5f);
+                dl.AddRectFilledMultiColor(
+                    new Vector2(lx, bMax.Y - 3f), new Vector2(lx + lw, bMax.Y),
+                    BarTop, BarBottom, BarBottom, BarTop);
             }
 
             if (hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
@@ -193,20 +204,19 @@ public static class MainMenu
         }
     }
 
-    // ── Content ─────────────────────────────────────────────────────
     private static void DrawContent()
     {
         var cx = SidebarW + 1f;
         var cy = TopBarH + 1f;
         var cw = WinW - SidebarW - 1f;
         var ch = WinH - TopBarH - 1f;
-        var m  = 16f;
+        var m  = 12f;
 
-        ImGuiNET.ImGui.SetCursorPos(new Vector2(cx + m, cy + m));
+        ImGuiNET.ImGui.SetCursorPos(new Vector2(cx + 16f, cy + m));
 
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.ScrollbarBg, Theme.HexA(0x000000, 0.05f));
         ImGuiNET.ImGui.BeginChild("##content",
-            new Vector2(cw - m * 2f, ch - m * 2f),
+            new Vector2(cw - 42f, ch - m * 2f),
             ImGuiChildFlags.None, ImGuiWindowFlags.NoBackground);
 
         var colW = (ImGuiNET.ImGui.GetContentRegionAvail().X - ColumnGap) * 0.5f;

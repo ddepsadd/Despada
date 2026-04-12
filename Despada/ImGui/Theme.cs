@@ -5,11 +5,11 @@ namespace Despada.ImGui;
 
 public static class Theme
 {
-    public static readonly Vector4 BgDeep       = Hex(0x060610);
-    public static readonly Vector4 BgBase       = Hex(0x0A0A16);
-    public static readonly Vector4 BgSurface    = Hex(0x0E0E1C);
-    public static readonly Vector4 BgElevated   = Hex(0x131322);
-    public static readonly Vector4 BgHover      = Hex(0x1A1A2C);
+    public static readonly Vector4 BgDeep       = Hex(0x08080C);
+    public static readonly Vector4 BgBase       = Hex(0x0C0C10);
+    public static readonly Vector4 BgSurface    = Hex(0x141418);
+    public static readonly Vector4 BgElevated   = Hex(0x1A1A20);
+    public static readonly Vector4 BgHover      = Hex(0x222228);
 
     public static readonly Vector4 Cyan         = Hex(0x9B30FF);
     public static readonly Vector4 CyanDim      = HexA(0x9B30FF, 0.70f);
@@ -35,18 +35,18 @@ public static class Theme
     public static readonly Vector4 Yellow       = Hex(0xFFD700);
     public static readonly Vector4 YellowMuted  = HexA(0xFFD700, 0.18f);
 
-    public static readonly Vector4 TextPrimary  = Hex(0xE8E8F0);
-    public static readonly Vector4 TextSecondary= Hex(0x9090A8);
-    public static readonly Vector4 TextDisabled = Hex(0x505068);
+    public static readonly Vector4 TextPrimary  = Hex(0xE0E0E8);
+    public static readonly Vector4 TextSecondary= Hex(0x888898);
+    public static readonly Vector4 TextDisabled = Hex(0x505060);
 
-    public static readonly Vector4 Border       = HexA(0x9B30FF, 0.10f);
-    public static readonly Vector4 BorderHover  = HexA(0x9B30FF, 0.30f);
-    public static readonly Vector4 BorderActive = HexA(0x9B30FF, 0.50f);
+    public static readonly Vector4 Border       = HexA(0xFFFFFF, 0.08f);
+    public static readonly Vector4 BorderHover  = HexA(0xFFFFFF, 0.15f);
+    public static readonly Vector4 BorderActive = HexA(0x9B30FF, 0.40f);
 
     public static readonly Vector4 ScrollBg     = HexA(0x000000, 0.10f);
-    public static readonly Vector4 ScrollGrab   = HexA(0x9B30FF, 0.20f);
-    public static readonly Vector4 ScrollHover  = HexA(0x9B30FF, 0.35f);
-    public static readonly Vector4 ScrollActive = HexA(0x9B30FF, 0.50f);
+    public static readonly Vector4 ScrollGrab   = HexA(0xFFFFFF, 0.10f);
+    public static readonly Vector4 ScrollHover  = HexA(0xFFFFFF, 0.18f);
+    public static readonly Vector4 ScrollActive = HexA(0xFFFFFF, 0.25f);
 
     public static void Apply()
     {
@@ -62,7 +62,7 @@ public static class Theme
         style.TabRounding       = 5f;
 
         style.WindowBorderSize  = 1f;
-        style.ChildBorderSize   = 1f;
+        style.ChildBorderSize   = 0f;
         style.FrameBorderSize   = 0f;
         style.PopupBorderSize   = 1f;
         style.TabBorderSize     = 0f;
@@ -76,14 +76,12 @@ public static class Theme
         style.GrabMinSize        = 10f;
 
         style.WindowTitleAlign   = new Vector2(0.5f, 0.5f);
-        style.SeparatorTextAlign = new Vector2(0f, 0.5f);
         style.AntiAliasedLines   = true;
         style.AntiAliasedFill    = true;
 
         colors[(int)ImGuiCol.WindowBg]           = BgBase;
         colors[(int)ImGuiCol.ChildBg]            = BgSurface;
         colors[(int)ImGuiCol.PopupBg]            = BgElevated;
-        colors[(int)ImGuiCol.MenuBarBg]          = BgSurface;
 
         colors[(int)ImGuiCol.Border]             = Border;
         colors[(int)ImGuiCol.BorderShadow]       = Vector4.Zero;
@@ -101,18 +99,12 @@ public static class Theme
         colors[(int)ImGuiCol.FrameBgActive]      = CyanMuted;
 
         colors[(int)ImGuiCol.Button]             = BgElevated;
-        colors[(int)ImGuiCol.ButtonHovered]      = CyanMuted;
-        colors[(int)ImGuiCol.ButtonActive]       = CyanGlow;
+        colors[(int)ImGuiCol.ButtonHovered]      = BgHover;
+        colors[(int)ImGuiCol.ButtonActive]       = CyanMuted;
 
         colors[(int)ImGuiCol.Header]             = CyanMuted;
         colors[(int)ImGuiCol.HeaderHovered]      = CyanGlow;
         colors[(int)ImGuiCol.HeaderActive]       = HexA(0x9B30FF, 0.45f);
-
-        colors[(int)ImGuiCol.Tab]                = BgSurface;
-        colors[(int)ImGuiCol.TabHovered]         = CyanMuted;
-        colors[(int)ImGuiCol.TabSelected]        = CyanGlow;
-        colors[(int)ImGuiCol.TabDimmed]          = BgDeep;
-        colors[(int)ImGuiCol.TabDimmedSelected]  = CyanMuted;
 
         colors[(int)ImGuiCol.CheckMark]          = Cyan;
         colors[(int)ImGuiCol.SliderGrab]         = CyanDim;
@@ -131,17 +123,18 @@ public static class Theme
         colors[(int)ImGuiCol.ResizeGripHovered]  = Vector4.Zero;
         colors[(int)ImGuiCol.ResizeGripActive]   = Vector4.Zero;
 
-        colors[(int)ImGuiCol.NavWindowingHighlight] = Cyan;
+        colors[(int)ImGuiCol.Tab]                = BgSurface;
+        colors[(int)ImGuiCol.TabHovered]         = CyanMuted;
+        colors[(int)ImGuiCol.TabSelected]        = CyanGlow;
 
         colors[(int)ImGuiCol.TableHeaderBg]      = BgSurface;
         colors[(int)ImGuiCol.TableBorderStrong]  = Border;
-        colors[(int)ImGuiCol.TableBorderLight]   = HexA(0x9B30FF, 0.06f);
-        colors[(int)ImGuiCol.TableRowBg]         = Vector4.Zero;
-        colors[(int)ImGuiCol.TableRowBgAlt]      = HexA(0xFFFFFF, 0.015f);
+        colors[(int)ImGuiCol.TableBorderLight]   = HexA(0xFFFFFF, 0.04f);
 
         colors[(int)ImGuiCol.ModalWindowDimBg]   = HexA(0x000000, 0.60f);
+        colors[(int)ImGuiCol.NavWindowingHighlight] = Cyan;
     }
-
+    
     public static Vector4 Hex(uint rgb)
     {
         float r = ((rgb >> 16) & 0xFF) / 255f;
@@ -159,6 +152,5 @@ public static class Theme
     }
 
     public static uint ToU32(Vector4 c) => ImGuiNET.ImGui.ColorConvertFloat4ToU32(c);
-
     public static Vector4 WithAlpha(Vector4 c, float a) => new(c.X, c.Y, c.Z, a);
 }

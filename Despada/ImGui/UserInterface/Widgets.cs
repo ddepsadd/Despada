@@ -10,24 +10,28 @@ public static class Widgets
 
     public static void ResetFrame() => _sectionId = 0;
 
-    private static readonly Vector4 SectionBg = Theme.HexA(0x111120, 0.90f);
-    private const float SectionPad   = 18f;
-    private const float SectionGap   = 10f;
-    private const float SectionRound = 6f;
-    private const float ContentIndent = 8f;
+    private static readonly Vector4 SectionBg     = Theme.Hex(0x141418);
+    private static readonly uint    SectionBorder  = Theme.ToU32(Theme.HexA(0xFFFFFF, 0.08f));
+    private static readonly uint    SeparatorColor = Theme.ToU32(Theme.HexA(0xFFFFFF, 0.08f));
+
+    private const float SectionPad   = 12f;
+    private const float SectionGap   = 14f;
+    private const float SectionRound = 10f;
+    private const float ContentIndent = 16f;
+    private const float HeaderPad    = 16f;
 
     public static void BeginSection(string title)
     {
         _sectionId++;
         var availW = ImGuiNET.ImGui.GetContentRegionAvail().X;
 
-        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.ChildBg, SectionBg);
-        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, SectionRound);
-        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(SectionPad, SectionPad));
+        PushSectionStyle();
 
         ImGuiNET.ImGui.BeginChild($"##section_{_sectionId}", new Vector2(availW, 0f),
             ImGuiChildFlags.AutoResizeY | ImGuiChildFlags.AlwaysAutoResize,
             ImGuiWindowFlags.NoScrollbar);
+
+        DrawSectionBorder();
 
         ImGuiNET.ImGui.TextColored(Theme.TextSecondary, title);
         ImGuiNET.ImGui.Spacing();
@@ -36,50 +40,89 @@ public static class Widgets
     public static void EndSection()
     {
         ImGuiNET.ImGui.EndChild();
-        ImGuiNET.ImGui.PopStyleVar(2);
-        ImGuiNET.ImGui.PopStyleColor();
+        PopSectionStyle();
         ImGuiNET.ImGui.Dummy(new Vector2(0f, SectionGap));
     }
+
+    private const float HeaderH = 64f;
 
     public static bool BeginFeatureSection(string icon, string title, string description, ref bool enabled)
     {
         _sectionId++;
         var availW = ImGuiNET.ImGui.GetContentRegionAvail().X;
 
-        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.ChildBg, SectionBg);
-        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, SectionRound);
-        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(SectionPad, SectionPad));
+        PushSectionStyle();
 
         ImGuiNET.ImGui.BeginChild($"##feature_{_sectionId}", new Vector2(availW, 0f),
             ImGuiChildFlags.AutoResizeY | ImGuiChildFlags.AlwaysAutoResize,
             ImGuiWindowFlags.NoScrollbar);
 
-        ImGuiNET.ImGui.Indent(ContentIndent);
+        // Border
+        DrawSectionBorder();
+
+        var dl       = ImGuiNET.ImGui.GetWindowDrawList();
+        var font     = ImGuiNET.ImGui.GetFont();
         var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
-        var iconColor = enabled ? Theme.Cyan : Theme.TextSecondary;
+        var origin   = ImGuiNET.ImGui.GetCursorScreenPos();
 
-        ImGuiNET.ImGui.SetWindowFontScale(1.8f);
-        ImGuiNET.ImGui.TextColored(iconColor, icon);
-        ImGuiNET.ImGui.SetWindowFontScale(1.0f);
+        ImGuiNET.ImGui.Dummy(new Vector2(contentW, HeaderH));
 
-        ImGuiNET.ImGui.SameLine(0f, 12f);
+        var hL = origin.X + HeaderPad;
+        var hR = origin.X + contentW - HeaderPad;
 
-        ImGuiNET.ImGui.BeginGroup();
-        ImGuiNET.ImGui.TextColored(enabled ? Theme.Cyan : Theme.TextSecondary, title);
-        ImGuiNET.ImGui.TextColored(Theme.TextDisabled, description);
-        ImGuiNET.ImGui.EndGroup();
+        var toggleId = $"##ft_{_sectionId}";
+        var animT = GetToggleT(toggleId, enabled);
 
-        ImGuiNET.ImGui.SameLine(contentW - ToggleW);
-        Toggle($"##ft_{_sectionId}", ref enabled);
+        var iconFs = font.FontSize * 2.0f;
+        var iconSz = font.CalcTextSizeA(iconFs, float.MaxValue, 0f, icon);
+        var iconCol = new Vector4(
+            Theme.TextSecondary.X + (Theme.Cyan.X - Theme.TextSecondary.X) * animT,
+            Theme.TextSecondary.Y + (Theme.Cyan.Y - Theme.TextSecondary.Y) * animT,
+            Theme.TextSecondary.Z + (Theme.Cyan.Z - Theme.TextSecondary.Z) * animT,
+            1f);
+        dl.AddText(font, iconFs,
+            new Vector2(hL, origin.Y + (HeaderH - iconSz.Y) * 0.5f),
+            Theme.ToU32(iconCol), icon);
 
-        ImGuiNET.ImGui.Spacing();
+        var textX   = hL + iconSz.X + 14f;
+        var titleFs = font.FontSize * 1.1f;
+        var titleSz = font.CalcTextSizeA(titleFs, float.MaxValue, 0f, title);
+        var descSz  = ImGuiNET.ImGui.CalcTextSize(description);
+        var blockH  = titleSz.Y + descSz.Y + 3f;
+        var blockY  = origin.Y + (HeaderH - blockH) * 0.5f;
+
+        if (enabled)
+            DrawGradientText(dl, font, titleFs, new Vector2(textX, blockY),
+                title, Theme.Violet, Theme.Cyan, Theme.Magenta);
+        else
+            dl.AddText(font, titleFs, new Vector2(textX, blockY),
+                Theme.ToU32(Theme.TextSecondary), title);
+
+        dl.AddText(new Vector2(textX, blockY + titleSz.Y + 3f),
+            Theme.ToU32(Theme.TextDisabled), description);
+
+        var toggleX = hR - ToggleW;
+        var toggleY = origin.Y + (HeaderH - ToggleH) * 0.5f;
+        var tMin = new Vector2(toggleX, toggleY);
+        var tMax = new Vector2(toggleX + ToggleW, toggleY + ToggleH);
+
+        bool tHov = ImGuiNET.ImGui.IsMouseHoveringRect(tMin, tMax);
+        if (tHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            enabled = !enabled;
+
+        DrawToggleAt(dl, tMin, enabled, tHov, $"##ft_{_sectionId}");
 
         if (enabled)
         {
-            DrawSectionDivider();
-            ImGuiNET.ImGui.Spacing();
+            var sepY = ImGuiNET.ImGui.GetCursorScreenPos().Y;
+            dl.AddRectFilled(
+                new Vector2(origin.X, sepY),
+                new Vector2(origin.X + contentW, sepY + 1f),
+                SeparatorColor);
+            ImGuiNET.ImGui.Dummy(new Vector2(0f, 8f));
         }
 
+        ImGuiNET.ImGui.Indent(ContentIndent);
         return enabled;
     }
 
@@ -87,30 +130,88 @@ public static class Widgets
     {
         ImGuiNET.ImGui.Unindent(ContentIndent);
         ImGuiNET.ImGui.EndChild();
-        ImGuiNET.ImGui.PopStyleVar(2);
-        ImGuiNET.ImGui.PopStyleColor();
+        PopSectionStyle();
         ImGuiNET.ImGui.Dummy(new Vector2(0f, SectionGap));
     }
-
-    public static void DrawSectionDivider()
+    
+    private static void PushSectionStyle()
     {
-        var dl    = ImGuiNET.ImGui.GetWindowDrawList();
-        var pos   = ImGuiNET.ImGui.GetCursorScreenPos();
-        var availW = ImGuiNET.ImGui.GetContentRegionAvail().X;
-
-        dl.AddRectFilled(
-            pos,
-            new Vector2(pos.X + availW, pos.Y + 2f),
-            Theme.ToU32(Theme.HexA(0x9B30FF, 0.20f)),
-            1f);
-
-        ImGuiNET.ImGui.Dummy(new Vector2(0f, 4f));
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.ChildBg, SectionBg);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, SectionRound);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(SectionPad, SectionPad));
     }
 
-    private const float ToggleW = 48f;
-    private const float ToggleH = 26f;
-    private const float KnobR   = 10f;
-    private const float KnobPad = 3f;
+    private static void PopSectionStyle()
+    {
+        ImGuiNET.ImGui.PopStyleVar(2);
+        ImGuiNET.ImGui.PopStyleColor();
+    }
+
+    private static void DrawSectionBorder()
+    {
+        var dl  = ImGuiNET.ImGui.GetWindowDrawList();
+        var pos = ImGuiNET.ImGui.GetWindowPos();
+        var sz  = ImGuiNET.ImGui.GetWindowSize();
+        dl.AddRect(pos, new Vector2(pos.X + sz.X, pos.Y + sz.Y),
+            SectionBorder, SectionRound, ImDrawFlags.None, 1f);
+    }
+
+    private const float ToggleW     = 46f;
+    private const float ToggleH     = 24f;
+    private const float KnobR       = 9f;
+    private const float KnobPad     = 3f;
+    private const float ToggleSpeed = 12f;
+
+    private static readonly Dictionary<string, float> _toggleAnim = new();
+
+    private static float GetToggleT(string id, bool value)
+    {
+        if (!_toggleAnim.TryGetValue(id, out var t))
+            t = value ? 1f : 0f;
+
+        var target = value ? 1f : 0f;
+        t = Anim.Lerp(t, target, ToggleSpeed, ImGuiNET.ImGui.GetIO().DeltaTime);
+        _toggleAnim[id] = t;
+        return t;
+    }
+
+    private static void DrawToggleAt(ImDrawListPtr dl, Vector2 pos, bool value, bool hovered, string id)
+    {
+        var t = GetToggleT(id, value);
+
+        var min    = pos;
+        var max    = new Vector2(pos.X + ToggleW, pos.Y + ToggleH);
+        var radius = ToggleH * 0.5f;
+
+        var offColor = hovered ? Theme.BgHover : Theme.BgElevated;
+        var onColor  = hovered ? Theme.Cyan : Theme.CyanDim;
+        var tc = new Vector4(
+            offColor.X + (onColor.X - offColor.X) * t,
+            offColor.Y + (onColor.Y - offColor.Y) * t,
+            offColor.Z + (onColor.Z - offColor.Z) * t,
+            offColor.W + (onColor.W - offColor.W) * t);
+        dl.AddRectFilled(min, max, Theme.ToU32(tc), radius);
+
+        if (t > 0.01f)
+        {
+            var gradAlpha = t * 0.25f;
+            var gradL = Theme.ToU32(Theme.HexA(0x6B2FD6, gradAlpha));
+            var gradR = Theme.ToU32(Theme.HexA(0xFF3090, gradAlpha));
+            var inset = radius;
+            dl.AddRectFilledMultiColor(
+                new Vector2(min.X + inset, min.Y),
+                new Vector2(max.X - inset, max.Y),
+                gradL, gradR, gradR, gradL);
+        }
+
+        var knobOff = min.X + KnobR + KnobPad;
+        var knobOn  = max.X - KnobR - KnobPad;
+        var knobX   = knobOff + (knobOn - knobOff) * t;
+
+        var knobAlpha = 0.4f + 0.6f * t;
+        var knobColor = Theme.HexA(0xFFFFFF, knobAlpha);
+        dl.AddCircleFilled(new Vector2(knobX, min.Y + ToggleH * 0.5f), KnobR, Theme.ToU32(knobColor));
+    }
 
     public static bool Toggle(string id, ref bool value)
     {
@@ -121,52 +222,393 @@ public static class Widgets
             value = !value;
 
         bool hovered = ImGuiNET.ImGui.IsItemHovered();
-        var dl = ImGuiNET.ImGui.GetWindowDrawList();
-
-        var min = pos;
-        var max = new Vector2(pos.X + ToggleW, pos.Y + ToggleH);
-        var radius = ToggleH * 0.5f;
-
-        var trackColor = value
-            ? (hovered ? Theme.Cyan : Theme.CyanDim)
-            : (hovered ? Theme.BgHover : Theme.BgElevated);
-        dl.AddRectFilled(min, max, Theme.ToU32(trackColor), radius);
-
-        var knobX = value ? max.X - KnobR - KnobPad : min.X + KnobR + KnobPad;
-        var knobColor = value ? Theme.Hex(0xFFFFFF) : Theme.HexA(0xFFFFFF, 0.5f);
-        dl.AddCircleFilled(new Vector2(knobX, min.Y + ToggleH * 0.5f), KnobR, Theme.ToU32(knobColor));
+        DrawToggleAt(ImGuiNET.ImGui.GetWindowDrawList(), pos, value, hovered, id);
 
         return result;
     }
 
     public static bool ToggleRow(string label, ref bool value)
     {
+        ImGuiNET.ImGui.Spacing();
+
         var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
 
         ImGuiNET.ImGui.AlignTextToFramePadding();
         ImGuiNET.ImGui.TextUnformatted(label);
         ImGuiNET.ImGui.SameLine(contentW - ToggleW);
-        return Toggle($"##{label}_tgl", ref value);
+        var result = Toggle($"##{label}_tgl", ref value);
+
+        ImGuiNET.ImGui.Spacing();
+        return result;
     }
 
-    public static bool SliderFloat(string label, ref float value, float min, float max, string format = "%.0f")
+    private const float SliderTrackH  = 6f;
+    private const float SliderKnobR   = 7f;
+    private const float SliderBoxW    = 72f;
+    private const float SliderBoxPad  = 16f;
+
+    private static readonly uint TrackBorder = Theme.ToU32(Theme.Border);
+    private static readonly uint TrackFillL  = Theme.ToU32(Theme.Violet);
+    private static readonly uint TrackFillR  = Theme.ToU32(Theme.Cyan);
+
+    private struct Spark
     {
-        // Remove indent for full-width slider
-        ImGuiNET.ImGui.Unindent(ContentIndent);
-        ImGuiNET.ImGui.PushItemWidth(-1f);
-        var result = ImGuiNET.ImGui.SliderFloat(label, ref value, min, max, format);
-        ImGuiNET.ImGui.PopItemWidth();
-        ImGuiNET.ImGui.Indent(ContentIndent);
-        return result;
+        public Vector2 Pos, Vel;
+        public float Life, MaxLife, Size;
+    }
+
+    private static readonly List<Spark> _sparks = new();
+    private static readonly Random _rng = new();
+
+    private static void UpdateSparks(ImDrawListPtr dl, float dt)
+    {
+        for (int i = _sparks.Count - 1; i >= 0; i--)
+        {
+            var s = _sparks[i];
+            s.Life -= dt;
+            if (s.Life <= 0f) { _sparks.RemoveAt(i); continue; }
+
+            s.Pos += s.Vel * dt;
+            s.Vel.Y += 120f * dt;
+            _sparks[i] = s;
+
+            var alpha = s.Life / s.MaxLife;
+            var t = 1f - alpha;
+            var color = new Vector4(
+                Theme.Violet.X + (Theme.Magenta.X - Theme.Violet.X) * t,
+                Theme.Violet.Y + (Theme.Magenta.Y - Theme.Violet.Y) * t,
+                Theme.Violet.Z + (Theme.Magenta.Z - Theme.Violet.Z) * t,
+                1f);
+
+            var r = s.Size * (0.4f + 0.6f * alpha);
+
+            dl.AddCircleFilled(s.Pos, r * 3f, Theme.ToU32(Theme.WithAlpha(color, alpha * 0.12f)));
+
+            dl.AddCircleFilled(s.Pos, r, Theme.ToU32(Theme.WithAlpha(color, alpha)));
+        }
+    }
+
+    private static void SpawnSparks(Vector2 origin, float dragVelX, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            var velX = -dragVelX * (0.05f + _rng.NextSingle() * 0.15f)
+                     + (_rng.NextSingle() - 0.5f) * 40f;
+            var velY = -100f - _rng.NextSingle() * 140f;
+
+            var speed = MathF.Sqrt(velX * velX + velY * velY);
+            var maxSpeed = 200f;
+            var minSpeed = 50f;
+            if (speed > maxSpeed) { velX *= maxSpeed / speed; velY *= maxSpeed / speed; }
+            if (speed < minSpeed) { velX *= minSpeed / speed; velY *= minSpeed / speed; }
+
+            _sparks.Add(new Spark
+            {
+                Pos     = origin + new Vector2((_rng.NextSingle() - 0.5f) * 4f, -2f),
+                Vel     = new Vector2(velX, velY),
+                Life    = 0.8f + _rng.NextSingle() * 0.7f,
+                MaxLife = 0.8f + _rng.NextSingle() * 0.7f,
+                Size    = 2f + _rng.NextSingle() * 2f,
+            });
+        }
+    }
+
+    private static string? _editingSlider;
+    private static string  _editBuffer = "";
+    private static bool    _editFirstFrame;
+    private static float   _lastSliderKnobX;
+
+    private const float ArrowBtnW = 18f;
+
+    public static bool SliderFloat(string label, ref float value, float min, float max,
+        string format = "%.0f", string suffix = "", float step = 1f)
+    {
+        ImGuiNET.ImGui.Spacing();
+
+        var dl       = ImGuiNET.ImGui.GetWindowDrawList();
+        var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
+        var pos      = ImGuiNET.ImGui.GetCursorScreenPos();
+        var dt       = ImGuiNET.ImGui.GetIO().DeltaTime;
+
+        // Parse label
+        var displayLabel = label.Contains("##") ? label[..label.IndexOf("##")] : label;
+        if (string.IsNullOrEmpty(displayLabel))
+        {
+            var colonIdx = format.IndexOf(':');
+            displayLabel = colonIdx >= 0 ? format[..colonIdx].Trim() : "Value";
+        }
+
+        var decimals = 0;
+        var dotIdx = format.IndexOf('.');
+        if (dotIdx >= 0 && dotIdx + 1 < format.Length && char.IsDigit(format[dotIdx + 1]))
+            decimals = format[dotIdx + 1] - '0';
+
+        var valueStr   = value.ToString($"F{decimals}");
+        var displayVal = string.IsNullOrEmpty(suffix) ? valueStr : $"{valueStr} {suffix}";
+
+        var labelH = ImGuiNET.ImGui.GetTextLineHeightWithSpacing();
+        var changed = false;
+
+        ImGuiNET.ImGui.TextUnformatted(displayLabel.Trim());
+
+        var showArrows = step > 0f;
+        var totalBoxW  = SliderBoxW + (showArrows ? ArrowBtnW * 2f + 4f : 0f);
+        var boxH       = labelH + 6f;
+        var groupRight  = pos.X + contentW - SliderBoxPad;
+        var groupLeft   = groupRight - totalBoxW;
+
+        var isEditing = _editingSlider == label;
+
+        if (showArrows)
+        {
+            var arrowLMin = new Vector2(groupLeft, pos.Y - 1f);
+            var arrowLMax = new Vector2(arrowLMin.X + ArrowBtnW, arrowLMin.Y + boxH);
+
+            bool arrowLHov = ImGuiNET.ImGui.IsMouseHoveringRect(arrowLMin, arrowLMax);
+            dl.AddRectFilled(arrowLMin, arrowLMax,
+                Theme.ToU32(arrowLHov ? Theme.BgHover : Theme.BgElevated), 4f, ImDrawFlags.RoundCornersLeft);
+
+            var aSzL = ImGuiNET.ImGui.CalcTextSize("<");
+            dl.AddText(
+                new Vector2(arrowLMin.X + (ArrowBtnW - aSzL.X) * 0.5f, arrowLMin.Y + (boxH - aSzL.Y) * 0.5f),
+                Theme.ToU32(arrowLHov ? Theme.TextPrimary : Theme.TextSecondary), "<");
+
+            if (arrowLHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            {
+                value = MathF.Max(min, value - step);
+                changed = true;
+            }
+        }
+
+        var boxX   = groupLeft + (showArrows ? ArrowBtnW + 2f : 0f);
+        var boxMin = new Vector2(boxX, pos.Y - 1f);
+        var boxMax = new Vector2(boxX + SliderBoxW, boxMin.Y + boxH);
+
+        if (isEditing)
+        {
+            dl.AddRectFilled(boxMin, boxMax, Theme.ToU32(SectionBg), showArrows ? 0f : 4f);
+            dl.AddRect(boxMin, boxMax, Theme.ToU32(Theme.BorderActive), showArrows ? 0f : 4f);
+
+            var io = ImGuiNET.ImGui.GetIO();
+
+            for (int ci = 0; ci < io.InputQueueCharacters.Size; ci++)
+            {
+                var ch = (char)io.InputQueueCharacters[ci];
+                if (ch >= 32 && (char.IsDigit(ch) || ch == '.' || ch == '-' || ch == ',') && _editBuffer.Length < 4)
+                    _editBuffer += ch;
+            }
+
+            if (ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.Backspace) && _editBuffer.Length > 0)
+                _editBuffer = _editBuffer[..^1];
+
+            if (ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.KeypadEnter))
+            {
+                if (float.TryParse(_editBuffer, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    value = MathF.Max(min, MathF.Min(max, parsed));
+                _editingSlider = null;
+                changed = true;
+            }
+
+            if (ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.Escape))
+                _editingSlider = null;
+
+            if (ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left) &&
+                !ImGuiNET.ImGui.IsMouseHoveringRect(boxMin, boxMax))
+            {
+                if (float.TryParse(_editBuffer, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    value = MathF.Max(min, MathF.Min(max, parsed));
+                _editingSlider = null;
+                changed = true;
+            }
+
+            var bufSz = ImGuiNET.ImGui.CalcTextSize(_editBuffer);
+            var bufPos = new Vector2(
+                boxMin.X + (SliderBoxW - bufSz.X) * 0.5f,
+                boxMin.Y + (boxH - bufSz.Y) * 0.5f);
+            dl.AddText(bufPos, Theme.ToU32(Theme.TextPrimary), _editBuffer);
+
+            var cursorOn = ((int)(ImGuiNET.ImGui.GetTime() * 2.5f)) % 2 == 0;
+            if (cursorOn)
+            {
+                var cursorX = bufPos.X + bufSz.X + 1f;
+                var cursorY1 = boxMin.Y + 4f;
+                var cursorY2 = boxMax.Y - 4f;
+                dl.AddLine(new Vector2(cursorX, cursorY1), new Vector2(cursorX, cursorY2),
+                    Theme.ToU32(Theme.TextPrimary), 1f);
+            }
+        }
+        else
+        {
+            dl.AddRectFilled(boxMin, boxMax, Theme.ToU32(SectionBg), showArrows ? 0f : 4f);
+            dl.AddRect(boxMin, boxMax, Theme.ToU32(Theme.Border), showArrows ? 0f : 4f);
+
+            var vSz = ImGuiNET.ImGui.CalcTextSize(displayVal);
+            dl.AddText(
+                new Vector2(boxMin.X + (SliderBoxW - vSz.X) * 0.5f, boxMin.Y + (boxH - vSz.Y) * 0.5f),
+                Theme.ToU32(Theme.TextPrimary), displayVal);
+
+            if (ImGuiNET.ImGui.IsMouseHoveringRect(boxMin, boxMax) &&
+                ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            {
+                _editingSlider = label;
+                _editBuffer = valueStr;
+                _editFirstFrame = true;
+            }
+        }
+
+        if (showArrows)
+        {
+            var arrowRMin = new Vector2(boxMax.X + 2f, pos.Y - 1f);
+            var arrowRMax = new Vector2(arrowRMin.X + ArrowBtnW, arrowRMin.Y + boxH);
+
+            bool arrowRHov = ImGuiNET.ImGui.IsMouseHoveringRect(arrowRMin, arrowRMax);
+            dl.AddRectFilled(arrowRMin, arrowRMax,
+                Theme.ToU32(arrowRHov ? Theme.BgHover : Theme.BgElevated), 4f, ImDrawFlags.RoundCornersRight);
+
+            var aSzR = ImGuiNET.ImGui.CalcTextSize(">");
+            dl.AddText(
+                new Vector2(arrowRMin.X + (ArrowBtnW - aSzR.X) * 0.5f, arrowRMin.Y + (boxH - aSzR.Y) * 0.5f),
+                Theme.ToU32(arrowRHov ? Theme.TextPrimary : Theme.TextSecondary), ">");
+
+            if (arrowRHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            {
+                value = MathF.Min(max, value + step);
+                changed = true;
+            }
+        }
+
+        var trackY = pos.Y + labelH + 8f;
+        var trackW = contentW - SliderBoxPad;
+        var knobH  = SliderKnobR * 2f;
+        var totalH = labelH + 8f + knobH + 8f;
+
+        var winPos2 = ImGuiNET.ImGui.GetWindowPos();
+        ImGuiNET.ImGui.SetCursorPos(new Vector2(pos.X - winPos2.X, trackY - 2f - winPos2.Y));
+
+        ImGuiNET.ImGui.InvisibleButton($"{label}_track", new Vector2(trackW, knobH + 4f));
+
+        bool active  = ImGuiNET.ImGui.IsItemActive();
+        bool hovered = ImGuiNET.ImGui.IsItemHovered();
+
+        if (active)
+        {
+            var mouseX = ImGuiNET.ImGui.GetIO().MousePos.X;
+            var t = (mouseX - pos.X) / trackW;
+            t = MathF.Max(0f, MathF.Min(1f, t));
+            var newVal = min + (max - min) * t;
+            if (MathF.Abs(newVal - value) > 0.001f)
+            {
+                value = newVal;
+                changed = true;
+            }
+        }
+
+        var frac = MathF.Max(0f, MathF.Min(1f, (value - min) / (max - min)));
+
+        var trkMin = new Vector2(pos.X, trackY + (knobH - SliderTrackH) * 0.5f);
+        var trkMax = new Vector2(pos.X + trackW, trkMin.Y + SliderTrackH);
+        var trkR   = SliderTrackH * 0.5f;
+
+        dl.AddRectFilled(trkMin, trkMax, Theme.ToU32(SectionBg), trkR);
+        dl.AddRect(trkMin, trkMax, TrackBorder, trkR);
+
+        if (frac > 0.005f)
+        {
+            var fillMax = new Vector2(pos.X + trackW * frac, trkMax.Y);
+            dl.AddRectFilled(trkMin, fillMax, TrackFillL, trkR);
+            dl.AddRectFilledMultiColor(
+                new Vector2(trkMin.X + trkR, trkMin.Y),
+                new Vector2(fillMax.X, trkMax.Y),
+                TrackFillL, TrackFillR, TrackFillR, TrackFillL);
+        }
+
+        var knobAnimId = $"{label}_knob";
+        var knobT = GetToggleT(knobAnimId, active);
+
+        var knobX  = pos.X + trackW * frac;
+        var knobCY = trackY + knobH * 0.5f;
+        var knobColor = (hovered || active) ? Theme.Hex(0xFFFFFF) : Theme.HexA(0xFFFFFF, 0.85f);
+
+        var pillW = 4f;
+        var pillH = 7f + 2f * knobT;
+        var pillR = 3f;
+
+        dl.AddRectFilled(
+            new Vector2(knobX - pillW, knobCY - pillH),
+            new Vector2(knobX + pillW, knobCY + pillH),
+            Theme.ToU32(knobColor), pillR);
+
+        var dragVelX = (knobX - _lastSliderKnobX) / MathF.Max(dt, 0.001f);
+
+        if (active && changed && MathF.Abs(dragVelX) > 20f)
+            SpawnSparks(new Vector2(knobX, knobCY), dragVelX, 2);
+
+        _lastSliderKnobX = knobX;
+
+        var fgDl = ImGuiNET.ImGui.GetForegroundDrawList();
+        UpdateSparks(fgDl, dt);
+
+        var winPosEnd = ImGuiNET.ImGui.GetWindowPos();
+        ImGuiNET.ImGui.SetCursorPos(new Vector2(pos.X - winPosEnd.X, pos.Y + totalH - winPosEnd.Y));
+        ImGuiNET.ImGui.Dummy(new Vector2(0f, 0f));
+
+        ImGuiNET.ImGui.Spacing();
+        return changed;
     }
 
     public static bool Combo(string label, ref int current, string items)
     {
+        ImGuiNET.ImGui.Spacing();
         ImGuiNET.ImGui.Unindent(ContentIndent);
         ImGuiNET.ImGui.PushItemWidth(-1f);
         var result = ImGuiNET.ImGui.Combo(label, ref current, items);
         ImGuiNET.ImGui.PopItemWidth();
         ImGuiNET.ImGui.Indent(ContentIndent);
         return result;
+    }
+
+    public static void DrawGradientText(ImDrawListPtr dl, ImFontPtr font, float fontSize,
+        Vector2 pos, string text, Vector4 colorStart, Vector4 colorMid, Vector4 colorEnd,
+        float shear = 0f)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+
+        var x = pos.X;
+        var lastIdx = text.Length - 1;
+        var charH = font.CalcTextSizeA(fontSize, float.MaxValue, 0f, "A").Y;
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            var t = lastIdx > 0 ? (float)i / lastIdx : 0f;
+
+            Vector4 color;
+            if (t < 0.5f)
+            {
+                var lt = t * 2f;
+                color = colorStart + (colorMid - colorStart) * lt;
+            }
+            else
+            {
+                var lt = (t - 0.5f) * 2f;
+                color = colorMid + (colorEnd - colorMid) * lt;
+            }
+
+            var ch = text[i].ToString();
+            var charW = font.CalcTextSizeA(fontSize, float.MaxValue, 0f, ch).X;
+
+            if (shear != 0f)
+            {
+                var shearOffset = shear * charH;
+                dl.AddText(font, fontSize, new Vector2(x + shearOffset, pos.Y), Theme.ToU32(color), ch);
+            }
+            else
+            {
+                dl.AddText(font, fontSize, new Vector2(x, pos.Y), Theme.ToU32(color), ch);
+            }
+
+            x += charW;
+        }
     }
 }

@@ -41,7 +41,7 @@ public static class VisualsTab
             {
                 Widgets.ToggleRow("Health Bars", ref _espHealth);
                 Widgets.ToggleRow("Names", ref _espNames);
-                Widgets.SliderFloat("##dist", ref _espDistance, 0f, 100f, "Distance: %.0f");
+                Widgets.SliderFloat("Distance##dist", ref _espDistance, 0f, 100f, "%.0f", "m", 5f);
             }
             Widgets.EndFeatureSection();
         }
