@@ -7,8 +7,13 @@ namespace Despada.ImGui.UserInterface;
 public static class Widgets
 {
     private static int _sectionId;
+    private static readonly HashSet<string> _toggleUpdatedThisFrame = new();
 
-    public static void ResetFrame() => _sectionId = 0;
+    public static void ResetFrame()
+    {
+        _sectionId = 0;
+        _toggleUpdatedThisFrame.Clear();
+    }
 
     private static readonly Vector4 SectionBg     = Theme.Hex(0x141418);
     private static readonly uint    SectionBorder  = Theme.ToU32(Theme.HexA(0xFFFFFF, 0.08f));
@@ -57,7 +62,6 @@ public static class Widgets
             ImGuiChildFlags.AutoResizeY | ImGuiChildFlags.AlwaysAutoResize,
             ImGuiWindowFlags.NoScrollbar);
 
-        // Border
         DrawSectionBorder();
 
         var dl       = ImGuiNET.ImGui.GetWindowDrawList();
@@ -110,7 +114,7 @@ public static class Widgets
         if (tHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
             enabled = !enabled;
 
-        DrawToggleAt(dl, tMin, enabled, tHov, $"##ft_{_sectionId}");
+        DrawToggleAt(dl, tMin, enabled, tHov, toggleId);
 
         if (enabled)
         {
@@ -133,7 +137,7 @@ public static class Widgets
         PopSectionStyle();
         ImGuiNET.ImGui.Dummy(new Vector2(0f, SectionGap));
     }
-    
+
     private static void PushSectionStyle()
     {
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.ChildBg, SectionBg);
@@ -160,7 +164,7 @@ public static class Widgets
     private const float ToggleH     = 24f;
     private const float KnobR       = 9f;
     private const float KnobPad     = 3f;
-    private const float ToggleSpeed = 12f;
+    private const float ToggleSpeed = 20f;
 
     private static readonly Dictionary<string, float> _toggleAnim = new();
 
@@ -169,9 +173,13 @@ public static class Widgets
         if (!_toggleAnim.TryGetValue(id, out var t))
             t = value ? 1f : 0f;
 
-        var target = value ? 1f : 0f;
-        t = Anim.Lerp(t, target, ToggleSpeed, ImGuiNET.ImGui.GetIO().DeltaTime);
-        _toggleAnim[id] = t;
+        if (_toggleUpdatedThisFrame.Add(id))
+        {
+            var target = value ? 1f : 0f;
+            t = Anim.Lerp(t, target, ToggleSpeed, ImGuiNET.ImGui.GetIO().DeltaTime);
+            _toggleAnim[id] = t;
+        }
+
         return t;
     }
 
@@ -217,14 +225,16 @@ public static class Widgets
     {
         var pos = ImGuiNET.ImGui.GetCursorScreenPos();
 
-        var result = ImGuiNET.ImGui.InvisibleButton(id, new Vector2(ToggleW, ToggleH));
-        if (result)
+        ImGuiNET.ImGui.InvisibleButton(id, new Vector2(ToggleW, ToggleH));
+        bool hovered = ImGuiNET.ImGui.IsItemHovered();
+
+        bool clicked = hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+        if (clicked)
             value = !value;
 
-        bool hovered = ImGuiNET.ImGui.IsItemHovered();
         DrawToggleAt(ImGuiNET.ImGui.GetWindowDrawList(), pos, value, hovered, id);
 
-        return result;
+        return clicked;
     }
 
     public static bool ToggleRow(string label, ref bool value)
@@ -237,6 +247,75 @@ public static class Widgets
         ImGuiNET.ImGui.TextUnformatted(label);
         ImGuiNET.ImGui.SameLine(contentW - ToggleW);
         var result = Toggle($"##{label}_tgl", ref value);
+
+        ImGuiNET.ImGui.Spacing();
+        return result;
+    }
+
+    private const float CheckboxSize  = 20f;
+    private const float CheckboxRound = 4f;
+    private const float CheckboxSpeed = 20f;
+
+    public static bool Checkbox(string id, ref bool value)
+    {
+        var pos = ImGuiNET.ImGui.GetCursorScreenPos();
+
+        ImGuiNET.ImGui.InvisibleButton(id, new Vector2(CheckboxSize, CheckboxSize));
+        bool hovered = ImGuiNET.ImGui.IsItemHovered();
+
+        bool clicked = hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+        if (clicked)
+            value = !value;
+
+        var dl = ImGuiNET.ImGui.GetWindowDrawList();
+        var t = GetToggleT(id, value);
+
+        var min = pos;
+        var max = new Vector2(pos.X + CheckboxSize, pos.Y + CheckboxSize);
+
+        var bgOff = hovered ? Theme.BgHover : Theme.BgElevated;
+        var bgOn  = hovered ? Theme.Cyan : Theme.CyanDim;
+        var bg = new Vector4(
+            bgOff.X + (bgOn.X - bgOff.X) * t,
+            bgOff.Y + (bgOn.Y - bgOff.Y) * t,
+            bgOff.Z + (bgOn.Z - bgOff.Z) * t,
+            bgOff.W + (bgOn.W - bgOff.W) * t);
+        dl.AddRectFilled(min, max, Theme.ToU32(bg), CheckboxRound);
+
+        if (t < 0.99f)
+            dl.AddRect(min, max, SectionBorder, CheckboxRound, ImDrawFlags.None, 1f);
+
+        if (t > 0.01f)
+        {
+            var checkAlpha = t;
+            var checkCol = Theme.ToU32(Theme.HexA(0xFFFFFF, checkAlpha));
+            var cx = pos.X + CheckboxSize * 0.5f;
+            var cy = pos.Y + CheckboxSize * 0.5f;
+            var s = CheckboxSize * 0.28f * (0.5f + 0.5f * t);
+
+            dl.AddLine(
+                new Vector2(cx - s, cy),
+                new Vector2(cx - s * 0.25f, cy + s * 0.7f),
+                checkCol, 2f);
+            dl.AddLine(
+                new Vector2(cx - s * 0.25f, cy + s * 0.7f),
+                new Vector2(cx + s, cy - s * 0.5f),
+                checkCol, 2f);
+        }
+
+        return clicked;
+    }
+
+    public static bool CheckboxRow(string label, ref bool value)
+    {
+        ImGuiNET.ImGui.Spacing();
+
+        var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
+
+        ImGuiNET.ImGui.AlignTextToFramePadding();
+        ImGuiNET.ImGui.TextUnformatted(label);
+        ImGuiNET.ImGui.SameLine(contentW - CheckboxSize);
+        var result = Checkbox($"##{label}_cb", ref value);
 
         ImGuiNET.ImGui.Spacing();
         return result;
@@ -269,7 +348,7 @@ public static class Widgets
             if (s.Life <= 0f) { _sparks.RemoveAt(i); continue; }
 
             s.Pos += s.Vel * dt;
-            s.Vel.Y += 120f * dt;
+            s.Vel.Y += 150f * dt;
             _sparks[i] = s;
 
             var alpha = s.Life / s.MaxLife;
@@ -278,13 +357,9 @@ public static class Widgets
                 Theme.Violet.X + (Theme.Magenta.X - Theme.Violet.X) * t,
                 Theme.Violet.Y + (Theme.Magenta.Y - Theme.Violet.Y) * t,
                 Theme.Violet.Z + (Theme.Magenta.Z - Theme.Violet.Z) * t,
-                1f);
+                alpha);
 
-            var r = s.Size * (0.4f + 0.6f * alpha);
-
-            dl.AddCircleFilled(s.Pos, r * 3f, Theme.ToU32(Theme.WithAlpha(color, alpha * 0.12f)));
-
-            dl.AddCircleFilled(s.Pos, r, Theme.ToU32(Theme.WithAlpha(color, alpha)));
+            dl.AddCircleFilled(s.Pos, s.Size * (0.5f + 0.5f * alpha), Theme.ToU32(color));
         }
     }
 
@@ -293,22 +368,22 @@ public static class Widgets
         for (int i = 0; i < count; i++)
         {
             var velX = -dragVelX * (0.05f + _rng.NextSingle() * 0.15f)
-                     + (_rng.NextSingle() - 0.5f) * 40f;
-            var velY = -100f - _rng.NextSingle() * 140f;
+                     + (_rng.NextSingle() - 0.5f) * 50f;
+            var velY = (_rng.NextSingle() - 0.6f) * 80f;
 
             var speed = MathF.Sqrt(velX * velX + velY * velY);
-            var maxSpeed = 200f;
-            var minSpeed = 50f;
-            if (speed > maxSpeed) { velX *= maxSpeed / speed; velY *= maxSpeed / speed; }
-            if (speed < minSpeed) { velX *= minSpeed / speed; velY *= minSpeed / speed; }
+            if (speed > 200f) { velX *= 200f / speed; velY *= 200f / speed; }
+            if (speed < 30f)  { velX *= 30f / speed;  velY *= 30f / speed; }
+
+            var life = 0.6f + _rng.NextSingle() * 0.5f;
 
             _sparks.Add(new Spark
             {
-                Pos     = origin + new Vector2((_rng.NextSingle() - 0.5f) * 4f, -2f),
+                Pos     = origin + new Vector2((_rng.NextSingle() - 0.5f) * 6f, (_rng.NextSingle() - 0.5f) * 6f),
                 Vel     = new Vector2(velX, velY),
-                Life    = 0.8f + _rng.NextSingle() * 0.7f,
-                MaxLife = 0.8f + _rng.NextSingle() * 0.7f,
-                Size    = 2f + _rng.NextSingle() * 2f,
+                Life    = life,
+                MaxLife = life,
+                Size    = 1.5f + _rng.NextSingle() * 1.5f,
             });
         }
     }
@@ -330,7 +405,6 @@ public static class Widgets
         var pos      = ImGuiNET.ImGui.GetCursorScreenPos();
         var dt       = ImGuiNET.ImGui.GetIO().DeltaTime;
 
-        // Parse label
         var displayLabel = label.Contains("##") ? label[..label.IndexOf("##")] : label;
         if (string.IsNullOrEmpty(displayLabel))
         {
@@ -543,7 +617,7 @@ public static class Widgets
         var dragVelX = (knobX - _lastSliderKnobX) / MathF.Max(dt, 0.001f);
 
         if (active && changed && MathF.Abs(dragVelX) > 20f)
-            SpawnSparks(new Vector2(knobX, knobCY), dragVelX, 2);
+            SpawnSparks(new Vector2(knobX, knobCY), dragVelX, 3);
 
         _lastSliderKnobX = knobX;
 

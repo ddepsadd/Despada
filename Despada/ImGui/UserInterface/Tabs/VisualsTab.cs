@@ -39,8 +39,8 @@ public static class VisualsTab
         {
             if (Widgets.BeginFeatureSection("\uF06E", "Player ESP", "Show player locations", ref _espEnabled))
             {
-                Widgets.ToggleRow("Health Bars", ref _espHealth);
                 Widgets.ToggleRow("Names", ref _espNames);
+                Widgets.CheckboxRow("Esp health", ref _espHealth);
                 Widgets.SliderFloat("Distance##dist", ref _espDistance, 0f, 100f, "%.0f", "m", 5f);
             }
             Widgets.EndFeatureSection();
