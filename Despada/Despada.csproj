@@ -12,6 +12,8 @@
     </ItemGroup>
     
     <ItemGroup>
+        <EmbeddedResource Include="Native\cimgui.dll" />
+        <EmbeddedResource Include="Native\libcimgui.dylib" />
         <EmbeddedResource Include="Native\libcimgui.so" />
         <EmbeddedResource Include="Assets\icon.png" />
         <EmbeddedResource Include="Assets\JetBrainsMonoNerdFontMono-Regular.ttf" />

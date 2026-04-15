@@ -11,25 +11,52 @@ internal static class NativeLoader
     {
         if (_loaded) return;
         _loaded = true;
-
         _tempDir = Path.Combine(Path.GetTempPath(), $"despada_{Environment.ProcessId}");
         Directory.CreateDirectory(_tempDir);
         MarseyLogger.Info($"[NativeLoader] Temp dir: {_tempDir}");
 
-        var asm    = typeof(NativeLoader).Assembly;
-        var soPath = ExtractResource(asm, "Native.libcimgui.so", "libcimgui.so");
-        if (soPath is null) return;
+        var asm = typeof(NativeLoader).Assembly;
+
+        string resourceSuffix, fileName;
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            MarseyLogger.Info("[NativeLoader] Windows detected");
+            resourceSuffix = "Native.cimgui.dll";
+            fileName       = "cimgui.dll";
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            MarseyLogger.Info("[NativeLoader] OSX detected");
+            resourceSuffix = "Native.libcimgui.dylib";
+            fileName       = "libcimgui.dylib";
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            MarseyLogger.Info("[NativeLoader] Linux detected");
+            resourceSuffix = "Native.libcimgui.so";
+            fileName       = "libcimgui.so";
+        }
+        else
+        {
+            MarseyLogger.Fatal("[NativeLoader] Unsupported platform");
+            return;
+        }
+
+        var nativePath = ExtractResource(asm, resourceSuffix, fileName);
+        if (nativePath is null) return;
 
         try
         {
-            var handle = NativeLibrary.Load(soPath);
-            MarseyLogger.Info($"[NativeLoader] Preloaded libcimgui.so, handle=0x{handle:X}");
+            var handle = NativeLibrary.Load(nativePath);
+            MarseyLogger.Info($"[NativeLoader] Preloaded {fileName}, handle=0x{handle:X}");
         }
         catch (Exception ex)
         {
             MarseyLogger.Fatal($"[NativeLoader] Preload failed: {ex.Message}");
             return;
         }
+
         TryRegisterForAssembly(typeof(ImGuiNET.ImGui).Assembly, _tempDir);
     }
 

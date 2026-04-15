@@ -1,3 +1,4 @@
+using System.Numerics;
 using Despada.ImGui;
 using ImGuiNET;
 
@@ -9,7 +10,7 @@ public static class VisualsTab
     private static bool  _espHealth;
     private static bool  _espNames = true;
     private static float _espDistance = 50f;
-
+    private static Vector4 _shiza = Theme.Hex(0x00FF00);
     private static bool _drawingEnabled;
     private static bool _espBox;
     private static bool _espTracers;
@@ -42,7 +43,8 @@ public static class VisualsTab
                 Widgets.ToggleRow("Names", ref _espNames);
                 Widgets.CheckboxRow("Esp health", ref _espHealth);
                 Widgets.SliderFloat("Distance##dist", ref _espDistance, 0f, 1000f, "%.0f", "m", 5f);
-                Widgets.Combo("##colormode", ref _espColorMode, "Team\0Role\0Health\0Swag\0Zov\0Anal\0Misandria\01488");
+                Widgets.Combo( "ComboTeeest", ref _espColorMode, "Team\0Role\0Health\0Swag\0Zov\0Misandria\01488");
+                Widgets.ColorPickerRow("Color", ref _shiza);
             }
             Widgets.EndFeatureSection();
         }
@@ -52,7 +54,7 @@ public static class VisualsTab
             {
                 Widgets.ToggleRow("Box ESP", ref _espBox);
                 Widgets.ToggleRow("Tracers", ref _espTracers);
-                Widgets.Combo("##colormode", ref _espColorMode, "Team\0Role\0Health\0");
+                Widgets.Combo("swag", ref _espColorMode, "Team\0Role\0Health\0");
             }
             Widgets.EndFeatureSection();
         }
