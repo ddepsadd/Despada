@@ -252,9 +252,8 @@ public static class Widgets
         return result;
     }
 
-    private const float CheckboxSize  = 20f;
-    private const float CheckboxRound = 4f;
-    private const float CheckboxSpeed = 20f;
+    private const float CheckboxSize  = 28f;
+    private const float CheckboxRound = 6f;
 
     public static bool Checkbox(string id, ref bool value)
     {
@@ -265,7 +264,14 @@ public static class Widgets
 
         bool clicked = hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left);
         if (clicked)
+        {
             value = !value;
+            if (value)
+            {
+                var center = new Vector2(pos.X + CheckboxSize * 0.5f, pos.Y + CheckboxSize * 0.5f);
+                SpawnBurstSparks(center, 12);
+            }
+        }
 
         var dl = ImGuiNET.ImGui.GetWindowDrawList();
         var t = GetToggleT(id, value);
@@ -274,7 +280,7 @@ public static class Widgets
         var max = new Vector2(pos.X + CheckboxSize, pos.Y + CheckboxSize);
 
         var bgOff = hovered ? Theme.BgHover : Theme.BgElevated;
-        var bgOn  = hovered ? Theme.Cyan : Theme.CyanDim;
+        var bgOn  = Theme.Cyan;
         var bg = new Vector4(
             bgOff.X + (bgOn.X - bgOff.X) * t,
             bgOff.Y + (bgOn.Y - bgOff.Y) * t,
@@ -287,20 +293,17 @@ public static class Widgets
 
         if (t > 0.01f)
         {
-            var checkAlpha = t;
-            var checkCol = Theme.ToU32(Theme.HexA(0xFFFFFF, checkAlpha));
             var cx = pos.X + CheckboxSize * 0.5f;
             var cy = pos.Y + CheckboxSize * 0.5f;
-            var s = CheckboxSize * 0.28f * (0.5f + 0.5f * t);
+            var checkCol = Theme.ToU32(Theme.HexA(0xFFFFFF, t));
 
-            dl.AddLine(
-                new Vector2(cx - s, cy),
-                new Vector2(cx - s * 0.25f, cy + s * 0.7f),
-                checkCol, 2f);
-            dl.AddLine(
-                new Vector2(cx - s * 0.25f, cy + s * 0.7f),
-                new Vector2(cx + s, cy - s * 0.5f),
-                checkCol, 2f);
+            Vector2[] checkPts =
+            [
+                new(cx - 5.5f, cy + 0.5f),
+                new(cx - 1f,   cy + 5f),
+                new(cx + 6.5f, cy - 4f)
+            ];
+            dl.AddPolyline(ref checkPts[0], 3, checkCol, ImDrawFlags.None, 3f);
         }
 
         return clicked;
@@ -384,6 +387,28 @@ public static class Widgets
                 Life    = life,
                 MaxLife = life,
                 Size    = 1.5f + _rng.NextSingle() * 1.5f,
+            });
+        }
+    }
+
+    private static void SpawnBurstSparks(Vector2 center, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            var angle = _rng.NextSingle() * MathF.PI * 2f;
+            var speed = 60f + _rng.NextSingle() * 120f;
+            var velX = MathF.Cos(angle) * speed;
+            var velY = MathF.Sin(angle) * speed - 20f;
+
+            var life = 0.5f + _rng.NextSingle() * 0.5f;
+
+            _sparks.Add(new Spark
+            {
+                Pos     = center + new Vector2((_rng.NextSingle() - 0.5f) * 6f, (_rng.NextSingle() - 0.5f) * 6f),
+                Vel     = new Vector2(velX, velY),
+                Life    = life,
+                MaxLife = life,
+                Size    = 1.5f + _rng.NextSingle() * 2f,
             });
         }
     }
@@ -634,13 +659,151 @@ public static class Widgets
 
     public static bool Combo(string label, ref int current, string items)
     {
+        var parsed = items.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+        return Combo(label, ref current, parsed);
+    }
+
+    public static bool Combo(string label, ref int current, string[] items)
+    {
+        const float boxH     = 34f;
+        const float boxW     = 160f;
+        const float boxR     = 6f;
+        const float pad      = 14f;
+        const float stripH   = 36f;
+        const float stripR   = 6f;
+        const float closeW   = 38f;
+        const float itemMin  = 72f;
+        const float sepInset = 8f;
+
         ImGuiNET.ImGui.Spacing();
-        ImGuiNET.ImGui.Unindent(ContentIndent);
-        ImGuiNET.ImGui.PushItemWidth(-1f);
-        var result = ImGuiNET.ImGui.Combo(label, ref current, items);
-        ImGuiNET.ImGui.PopItemWidth();
-        ImGuiNET.ImGui.Indent(ContentIndent);
-        return result;
+
+        var dl   = ImGuiNET.ImGui.GetWindowDrawList();
+        var font = ImGuiNET.ImGui.GetFont();
+        var fs   = font.FontSize;
+        var cw   = ImGuiNET.ImGui.GetContentRegionAvail().X;
+        var pos  = ImGuiNET.ImGui.GetCursorScreenPos();
+        var changed = false;
+
+        var dLabel  = label.Contains("##") ? label[..label.IndexOf("##")] : label;
+        var pid     = $"{label}_p";
+        bool isOpen = ImGuiNET.ImGui.IsPopupOpen(pid);
+
+        if (!string.IsNullOrEmpty(dLabel))
+        {
+            ImGuiNET.ImGui.AlignTextToFramePadding();
+            ImGuiNET.ImGui.TextUnformatted(dLabel);
+        }
+
+        ImGuiNET.ImGui.SameLine(cw - boxW);
+        pos = ImGuiNET.ImGui.GetCursorScreenPos();
+
+        var bMin = pos;
+        var bMax = new Vector2(pos.X + boxW, pos.Y + boxH);
+
+        ImGuiNET.ImGui.InvisibleButton($"{label}_b", new Vector2(boxW, boxH));
+        bool bH = ImGuiNET.ImGui.IsItemHovered();
+        if (bH && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            ImGuiNET.ImGui.OpenPopup(pid);
+
+        dl.AddRectFilled(bMin, bMax, Theme.ToU32(SectionBg), boxR);
+        dl.AddRect(bMin, bMax,
+            Theme.ToU32(isOpen ? Theme.BorderActive : bH ? Theme.BorderHover : Theme.Border),
+            boxR, ImDrawFlags.None, 1f);
+
+        var vt = current >= 0 && current < items.Length ? items[current] : "";
+        var vs = font.CalcTextSizeA(fs, float.MaxValue, 0f, vt);
+        dl.AddText(font, fs,
+            new Vector2(bMin.X + pad, bMin.Y + (boxH - vs.Y) * 0.5f),
+            Theme.ToU32(Theme.TextPrimary), vt);
+
+        var chev = isOpen ? "<" : ">";
+        var chSz = font.CalcTextSizeA(fs, float.MaxValue, 0f, chev);
+        dl.AddText(font, fs,
+            new Vector2(bMax.X - pad - chSz.X, bMin.Y + (boxH - chSz.Y) * 0.5f),
+            Theme.ToU32(isOpen ? Theme.TextPrimary : Theme.TextSecondary), chev);
+
+        float maxTW = 0f;
+        for (int i = 0; i < items.Length; i++)
+        {
+            var tw = font.CalcTextSizeA(fs, float.MaxValue, 0f, items[i]).X;
+            if (tw > maxTW) maxTW = tw;
+        }
+        var iW     = MathF.Max(maxTW + 28f, itemMin);
+        var totalW = closeW + iW * items.Length;
+        var sepCol = Theme.ToU32(Theme.HexA(0xFFFFFF, 0.06f));
+
+        ImGuiNET.ImGui.SetNextWindowPos(new Vector2(bMin.X, bMax.Y + 1f));
+        ImGuiNET.ImGui.SetNextWindowSize(new Vector2(totalW, stripH));
+
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, stripR);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 1f);
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.PopupBg, Theme.BgElevated);
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Border, Theme.HexA(0xFFFFFF, 0.10f));
+
+        if (ImGuiNET.ImGui.BeginPopup(pid,
+            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize))
+        {
+            var p  = ImGuiNET.ImGui.GetWindowDrawList();
+            var wP = ImGuiNET.ImGui.GetWindowPos();
+            ImGuiNET.ImGui.Dummy(new Vector2(totalW, stripH));
+
+            var xMin = wP;
+            var xMax = new Vector2(wP.X + closeW, wP.Y + stripH);
+            bool xHov = ImGuiNET.ImGui.IsMouseHoveringRect(xMin, xMax);
+
+            if (xHov)
+                p.AddRectFilled(xMin, xMax, Theme.ToU32(Theme.BgHover), stripR, ImDrawFlags.RoundCornersLeft);
+
+            var xTs = font.CalcTextSizeA(fs, float.MaxValue, 0f, "X");
+            p.AddText(font, fs,
+                new Vector2(xMin.X + (closeW - xTs.X) * 0.5f, xMin.Y + (stripH - xTs.Y) * 0.5f),
+                Theme.ToU32(xHov ? Theme.TextPrimary : Theme.TextSecondary), "X");
+
+            if (xHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                ImGuiNET.ImGui.CloseCurrentPopup();
+
+            p.AddLine(new Vector2(xMax.X, wP.Y + sepInset), new Vector2(xMax.X, wP.Y + stripH - sepInset), sepCol);
+
+            for (int i = 0; i < items.Length; i++)
+            {
+                var ox   = wP.X + closeW + iW * i;
+                var oMin = new Vector2(ox, wP.Y);
+                var oMax = new Vector2(ox + iW, wP.Y + stripH);
+                bool oHov = ImGuiNET.ImGui.IsMouseHoveringRect(oMin, oMax);
+                bool sel  = i == current;
+
+                var cf = i == items.Length - 1 ? ImDrawFlags.RoundCornersRight : ImDrawFlags.None;
+
+                if (sel)
+                    p.AddRectFilled(oMin, oMax, Theme.ToU32(Theme.HexA(0x9B30FF, 0.25f)), stripR, cf);
+                else if (oHov)
+                    p.AddRectFilled(oMin, oMax, Theme.ToU32(Theme.BgHover), stripR, cf);
+
+                var ts = font.CalcTextSizeA(fs, float.MaxValue, 0f, items[i]);
+                p.AddText(font, fs,
+                    new Vector2(oMin.X + (iW - ts.X) * 0.5f, oMin.Y + (stripH - ts.Y) * 0.5f),
+                    Theme.ToU32(sel ? Theme.Cyan : Theme.TextPrimary), items[i]);
+
+                if (i < items.Length - 1)
+                    p.AddLine(new Vector2(oMax.X, wP.Y + sepInset), new Vector2(oMax.X, wP.Y + stripH - sepInset), sepCol);
+
+                if (oHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                {
+                    current = i;
+                    changed = true;
+                    ImGuiNET.ImGui.CloseCurrentPopup();
+                }
+            }
+
+            ImGuiNET.ImGui.EndPopup();
+        }
+
+        ImGuiNET.ImGui.PopStyleColor(2);
+        ImGuiNET.ImGui.PopStyleVar(3);
+
+        ImGuiNET.ImGui.Spacing();
+        return changed;
     }
 
     public static void DrawGradientText(ImDrawListPtr dl, ImFontPtr font, float fontSize,

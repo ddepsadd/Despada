@@ -41,7 +41,8 @@ public static class VisualsTab
             {
                 Widgets.ToggleRow("Names", ref _espNames);
                 Widgets.CheckboxRow("Esp health", ref _espHealth);
-                Widgets.SliderFloat("Distance##dist", ref _espDistance, 0f, 100f, "%.0f", "m", 5f);
+                Widgets.SliderFloat("Distance##dist", ref _espDistance, 0f, 1000f, "%.0f", "m", 5f);
+                Widgets.Combo("##colormode", ref _espColorMode, "Team\0Role\0Health\0Swag\0Zov\0Anal\0Misandria\01488");
             }
             Widgets.EndFeatureSection();
         }

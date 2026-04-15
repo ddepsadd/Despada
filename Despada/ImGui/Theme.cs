@@ -52,7 +52,11 @@ public static class Theme
     {
         var style  = ImGuiNET.ImGui.GetStyle();
         var colors = style.Colors;
-
+        
+        style.AntiAliasedLines = true;
+        style.AntiAliasedLinesUseTex = false;
+        style.AntiAliasedFill = true;
+            
         style.WindowRounding    = 8f;
         style.ChildRounding     = 6f;
         style.FrameRounding     = 5f;
