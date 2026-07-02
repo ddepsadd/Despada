@@ -68,7 +68,7 @@ public static class ClydeRenderHook
 
         if (!found)
         {
-            MarseyLogger.Warn("[ClydeRenderHook] Injection point NOT found! " +
+            MarseyLogger.Warn("[ClydeRenderHook] Injection point not found! " +
                               "TakeScreenshot call was not detected in Render(). " +
                               "Check method signatures — game may have been updated.");
         }

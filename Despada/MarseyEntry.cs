@@ -5,13 +5,19 @@ public static class MarseyEntry
 {
     public static void Entry()
     {
-        Harmony.DEBUG = true;
+        Harmony.DEBUG = false;
         MarseyLogger.Info("Entry for patching started.");
         
         if (!TryGetAssembly("Content.Client")) return;
         
         var subversionAssembly = Assembly.GetExecutingAssembly();
         SubverterPatch.Harm.PatchAll(subversionAssembly);
+
+        Sedition.Hide();
+        Sedition.Apply(new Sedition.Manifest
+        {
+            StackNames = { "Despada" },
+        });
     }
 
     private static bool TryGetAssembly(string assembly)
