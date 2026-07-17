@@ -6,6 +6,9 @@ internal static class NativeLoader
 {
     private static string? _tempDir;
     private static bool    _loaded;
+    
+    private static nint    _resolvedHandle;
+    private static string? _resolvedName;
 
     public static void EnsureLoaded()
     {
@@ -86,6 +89,9 @@ internal static class NativeLoader
         {
             NativeLibrary.SetDllImportResolver(asm, (libraryName, assembly, searchPath) =>
             {
+                if (_resolvedHandle != 0 && libraryName == _resolvedName)
+                    return _resolvedHandle;
+
                 var candidates = new[]
                 {
                     libraryName,
@@ -98,6 +104,8 @@ internal static class NativeLoader
                     var path = Path.Combine(dir, candidate);
                     if (File.Exists(path) && NativeLibrary.TryLoad(path, out var h))
                     {
+                        _resolvedName   = libraryName;
+                        _resolvedHandle = h;
                         MarseyLogger.Info($"[NativeLoader] Resolved '{libraryName}' → {path}");
                         return h;
                     }

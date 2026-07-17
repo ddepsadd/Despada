@@ -17,7 +17,6 @@ public static partial class Widgets
 
     private static string? _editingSlider;
     private static string  _editBuffer = "";
-    private static bool    _editFirstFrame;
     private static float   _lastSliderKnobX;
 
     public static bool SliderFloat(string label, ref float value, float min, float max,
@@ -156,7 +155,6 @@ public static partial class Widgets
             {
                 _editingSlider = label;
                 _editBuffer = valueStr;
-                _editFirstFrame = true;
             }
         }
 

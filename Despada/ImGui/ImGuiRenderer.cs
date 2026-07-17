@@ -243,6 +243,7 @@ public static class ImGuiRenderer
         {
             MarseyLogger.Info($"[ImGuiRenderer] Initializing ImGui at {_screenW}x{_screenH}...");
             NativeLoader.EnsureLoaded();
+            GlBackend.EnsureLoaded();
 
             ImGuiNET.ImGui.CreateContext();
 
@@ -278,6 +279,7 @@ public static class ImGuiRenderer
     }
 
     private static GCHandle _fontDataHandle;
+    private static GCHandle _glyphRangesHandle;
 
     private static unsafe void LoadFont(ImGuiIOPtr io, float scale)
     {
@@ -294,7 +296,7 @@ public static class ImGuiRenderer
         }
 
         var fontData = new byte[stream.Length];
-        _ = stream.Read(fontData, 0, fontData.Length);
+        stream.ReadExactly(fontData);
 
         _fontDataHandle = GCHandle.Alloc(fontData, GCHandleType.Pinned);
 
@@ -304,17 +306,17 @@ public static class ImGuiRenderer
         cfg.OversampleV          = 2;
         cfg.PixelSnapH           = true;
 
-        var ranges       = BuildGlyphRanges();
-        var rangesHandle = GCHandle.Alloc(ranges, GCHandleType.Pinned);
+        var ranges         = BuildGlyphRanges();
+        _glyphRangesHandle = GCHandle.Alloc(ranges, GCHandleType.Pinned);
 
         io.Fonts.AddFontFromMemoryTTF(
             _fontDataHandle.AddrOfPinnedObject(),
             fontData.Length,
             fontSize,
             cfg,
-            rangesHandle.AddrOfPinnedObject());
+            _glyphRangesHandle.AddrOfPinnedObject());
 
-        rangesHandle.Free();
+        ImGuiNative.ImFontConfig_destroy(cfg.NativePtr);
         MarseyLogger.Info($"[ImGuiRenderer] Font: {resourceName} @ {fontSize}px (scale={scale:F2})");
     }
 
@@ -367,6 +369,8 @@ public static class ImGuiRenderer
 
         if (_fontDataHandle.IsAllocated)
             _fontDataHandle.Free();
+        if (_glyphRangesHandle.IsAllocated)
+            _glyphRangesHandle.Free();
     }
 
     private static nint CreateFontTexture(nint pixels, int width, int height)
@@ -464,6 +468,7 @@ public static class ImGuiRenderer
     {
         if (!_initialized) return;
         if (_fontDataHandle.IsAllocated) _fontDataHandle.Free();
+        if (_glyphRangesHandle.IsAllocated) _glyphRangesHandle.Free();
         ImGuiNET.ImGui.DestroyContext();
         _initialized = false;
         MarseyLogger.Info("[ImGuiRenderer] Shutdown complete.");
