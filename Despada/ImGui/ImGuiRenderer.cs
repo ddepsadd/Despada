@@ -86,9 +86,11 @@ public static class ImGuiRenderer
             var elapsedSec = (float)_stopwatch.Elapsed.TotalSeconds;
             _stopwatch.Restart();
 
+            UpdateScale();
+
             var io = ImGuiNET.ImGui.GetIO();
-            io.DisplaySize             = new Vector2(_screenW, _screenH);
-            io.DisplayFramebufferScale = new Vector2(1f, 1f);
+            io.DisplaySize             = new Vector2(_screenW / UiScale.K, _screenH / UiScale.K);
+            io.DisplayFramebufferScale = new Vector2(UiScale.K, UiScale.K);
             io.DeltaTime               = Math.Clamp(elapsedSec, 0.0001f, 0.1f);
 
             ImGuiInputHook.FlushEvents();
@@ -199,7 +201,8 @@ public static class ImGuiRenderer
         ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
         ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(10f, 6f));
 
-        float y = _screenH - PadY;
+        var ds = ImGuiNET.ImGui.GetIO().DisplaySize;
+        float y = ds.Y - PadY;
 
         for (int i = 0; i < _activeToasts.Count; i++)
         {
@@ -208,7 +211,7 @@ public static class ImGuiRenderer
 
             float alpha = Math.Min(1f, toast.TimeLeft / FadeTime);
 
-            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(_screenW - Width - PadX, y), ImGuiCond.Always);
+            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(ds.X - Width - PadX, y), ImGuiCond.Always);
             ImGuiNET.ImGui.SetNextWindowSize(new Vector2(Width, Height), ImGuiCond.Always);
             ImGuiNET.ImGui.SetNextWindowBgAlpha(0.88f * alpha);
 
@@ -236,6 +239,12 @@ public static class ImGuiRenderer
 
         ImGuiNET.ImGui.PopStyleVar(3);
     }
+    
+    private static void UpdateScale()
+    {
+        float scale = Math.Clamp(_screenH / 1080f, 0.75f, 4f);
+        UiScale.K   = scale * (1080f / UiScale.DesignHeight);
+    }
 
     private static void Initialize()
     {
@@ -247,14 +256,18 @@ public static class ImGuiRenderer
 
             ImGuiNET.ImGui.CreateContext();
 
+            UpdateScale();
+
             var io = ImGuiNET.ImGui.GetIO();
-            io.DisplaySize             = new Vector2(_screenW, _screenH);
-            io.DisplayFramebufferScale = new Vector2(1f, 1f);
+            io.DisplaySize             = new Vector2(_screenW / UiScale.K, _screenH / UiScale.K);
+            io.DisplayFramebufferScale = new Vector2(UiScale.K, UiScale.K);
 
             float scale = Math.Clamp(_screenH / 1080f, 0.75f, 4f);
-            MarseyLogger.Info($"[ImGuiRenderer] DPI scale: {scale:F2}x (stable after {_stableFrames} frames)");
+            MarseyLogger.Info($"[ImGuiRenderer] scale={scale:F2} K={UiScale.K:F2} ({_screenW}x{_screenH}, stable {_stableFrames}f)");
 
             LoadFont(io, scale);
+
+            io.FontGlobalScale = 1f / UiScale.K;
 
             io.Fonts.Build();
             io.Fonts.GetTexDataAsRGBA32(out nint pixels, out int fw, out int fh, out _);
@@ -264,7 +277,7 @@ public static class ImGuiRenderer
             io.Fonts.SetTexID(_fontTextureId);
             io.Fonts.ClearTexData();
 
-            ImGuiNET.ImGui.GetStyle().ScaleAllSizes(scale);
+            ImGuiNET.ImGui.GetStyle().ScaleAllSizes(scale / UiScale.K);
 
             CreateGlObjects();
             Theme.Apply();

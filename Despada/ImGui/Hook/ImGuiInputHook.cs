@@ -230,7 +230,8 @@ public static class ImGuiInputHook
             if (innerPos is Vector2 v) pos = v;
         }
 
-        _ioQueue.Enqueue(io => io.MousePos = pos);
+        var virtualPos = pos / UiScale.K;
+        _ioQueue.Enqueue(io => io.MousePos = virtualPos);
         return !WantCaptureMouse;
     }
 
