@@ -93,6 +93,8 @@ public static class ImGuiRenderer
             io.DisplayFramebufferScale = new Vector2(UiScale.K, UiScale.K);
             io.DeltaTime               = Math.Clamp(elapsedSec, 0.0001f, 0.1f);
 
+            MaybeRebuildFont(io);
+
             ImGuiInputHook.FlushEvents();
 
             GlStateGuard.Save();
@@ -240,10 +242,11 @@ public static class ImGuiRenderer
         ImGuiNET.ImGui.PopStyleVar(3);
     }
     
+    private static float FontScale() => Math.Clamp(_screenH / 1080f, 0.75f, 4f);
+
     private static void UpdateScale()
     {
-        float scale = Math.Clamp(_screenH / 1080f, 0.75f, 4f);
-        UiScale.K   = scale * (1080f / UiScale.DesignHeight);
+        UiScale.K = FontScale() * (1080f / UiScale.DesignHeight);
     }
 
     private static void Initialize()
@@ -262,20 +265,10 @@ public static class ImGuiRenderer
             io.DisplaySize             = new Vector2(_screenW / UiScale.K, _screenH / UiScale.K);
             io.DisplayFramebufferScale = new Vector2(UiScale.K, UiScale.K);
 
-            float scale = Math.Clamp(_screenH / 1080f, 0.75f, 4f);
+            float scale = FontScale();
             MarseyLogger.Info($"[ImGuiRenderer] scale={scale:F2} K={UiScale.K:F2} ({_screenW}x{_screenH}, stable {_stableFrames}f)");
 
-            LoadFont(io, scale);
-
-            io.FontGlobalScale = 1f / UiScale.K;
-
-            io.Fonts.Build();
-            io.Fonts.GetTexDataAsRGBA32(out nint pixels, out int fw, out int fh, out _);
-            MarseyLogger.Info($"[ImGuiRenderer] Font atlas: {fw}x{fh}");
-
-            _fontTextureId = CreateFontTexture(pixels, fw, fh);
-            io.Fonts.SetTexID(_fontTextureId);
-            io.Fonts.ClearTexData();
+            BuildFontAtlas(io, scale);
 
             ImGuiNET.ImGui.GetStyle().ScaleAllSizes(scale / UiScale.K);
 
@@ -293,6 +286,39 @@ public static class ImGuiRenderer
 
     private static GCHandle _fontDataHandle;
     private static GCHandle _glyphRangesHandle;
+    
+    private static float _atlasBuiltScale = -1f;
+
+    private static void BuildFontAtlas(ImGuiIOPtr io, float scale)
+    {
+        io.Fonts.Clear();
+        LoadFont(io, scale);
+
+        io.FontGlobalScale = 1f / UiScale.K;
+
+        io.Fonts.Build();
+        io.Fonts.GetTexDataAsRGBA32(out nint pixels, out int fw, out int fh, out _);
+
+        if (_fontTextureId != 0)
+            GlBackend.DeleteTexture((uint)_fontTextureId);
+        _fontTextureId = CreateFontTexture(pixels, fw, fh);
+        io.Fonts.SetTexID(_fontTextureId);
+        io.Fonts.ClearTexData();
+
+        if (_fontDataHandle.IsAllocated)    _fontDataHandle.Free();
+        if (_glyphRangesHandle.IsAllocated) _glyphRangesHandle.Free();
+
+        _atlasBuiltScale = scale;
+        MarseyLogger.Info($"[ImGuiRenderer] Font atlas: {fw}x{fh} (scale={scale:F2}, K={UiScale.K:F2})");
+    }
+
+    private static void MaybeRebuildFont(ImGuiIOPtr io)
+    {
+        if (_atlasBuiltScale <= 0f) return;
+        float scale = FontScale();
+        if (MathF.Abs(scale - _atlasBuiltScale) / _atlasBuiltScale >= 0.1f)
+            BuildFontAtlas(io, scale);
+    }
 
     private static unsafe void LoadFont(ImGuiIOPtr io, float scale)
     {
@@ -310,6 +336,9 @@ public static class ImGuiRenderer
 
         var fontData = new byte[stream.Length];
         stream.ReadExactly(fontData);
+
+        if (_fontDataHandle.IsAllocated)    _fontDataHandle.Free();
+        if (_glyphRangesHandle.IsAllocated) _glyphRangesHandle.Free();
 
         _fontDataHandle = GCHandle.Alloc(fontData, GCHandleType.Pinned);
 
@@ -379,11 +408,6 @@ public static class ImGuiRenderer
         _vao            = GlBackend.GenVertexArray();
         _vbo            = GlBackend.GenBuffer();
         _ebo            = GlBackend.GenBuffer();
-
-        if (_fontDataHandle.IsAllocated)
-            _fontDataHandle.Free();
-        if (_glyphRangesHandle.IsAllocated)
-            _glyphRangesHandle.Free();
     }
 
     private static nint CreateFontTexture(nint pixels, int width, int height)

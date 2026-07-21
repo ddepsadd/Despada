@@ -24,6 +24,7 @@ internal static unsafe class GlBackend
     private delegate void D_EnableVertexAttribArray(uint index);
     private delegate void D_VertexAttribPointer(uint index, int size, uint type, bool normalized, int stride, nint pointer);
     private delegate void D_GenTextures(int n, out uint textures);
+    private delegate void D_DeleteTextures(int n, ref uint textures);
     private delegate void D_BindTexture(uint target, uint texture);
     private delegate void D_TexParameteri(uint target, uint pname, int param);
     private delegate void D_TexImage2D(uint target, int level, int internalFormat, int width, int height, int border, uint format, uint type, nint pixels);
@@ -51,6 +52,7 @@ internal static unsafe class GlBackend
     private static D_EnableVertexAttribArray glEnableVertexAttribArray = null!;
     private static D_VertexAttribPointer    glVertexAttribPointer    = null!;
     private static D_GenTextures            glGenTextures            = null!;
+    private static D_DeleteTextures         glDeleteTextures         = null!;
     private static D_BindTexture            glBindTexture            = null!;
     private static D_TexParameteri          glTexParameteri          = null!;
     private static D_TexImage2D             glTexImage2D             = null!;
@@ -85,6 +87,7 @@ internal static unsafe class GlBackend
         glEnableVertexAttribArray = GlLoader.Load<D_EnableVertexAttribArray>("glEnableVertexAttribArray");
         glVertexAttribPointer     = GlLoader.Load<D_VertexAttribPointer>("glVertexAttribPointer");
         glGenTextures             = GlLoader.Load<D_GenTextures>("glGenTextures");
+        glDeleteTextures          = GlLoader.Load<D_DeleteTextures>("glDeleteTextures");
         glBindTexture             = GlLoader.Load<D_BindTexture>("glBindTexture");
         glTexParameteri           = GlLoader.Load<D_TexParameteri>("glTexParameteri");
         glTexImage2D              = GlLoader.Load<D_TexImage2D>("glTexImage2D");
@@ -124,6 +127,7 @@ internal static unsafe class GlBackend
     public static uint GenVertexArray() { glGenVertexArrays(1, out var v); return v; }
     public static uint GenBuffer()      { glGenBuffers(1, out var v);      return v; }
     public static uint GenTexture()     { glGenTextures(1, out var v);     return v; }
+    public static void DeleteTexture(uint tex) => glDeleteTextures(1, ref tex);
 
     public static void BindVertexArray(uint v)             => glBindVertexArray(v);
     public static void BindBuffer(uint target, uint buf)   => glBindBuffer(target, buf);
