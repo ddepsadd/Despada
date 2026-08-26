@@ -1,0 +1,51 @@
+# ---- Сборка .NET ----
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Ll]ogs/
+artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.binlog
+
+# ---- NuGet ----
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+.nuget/
+project.lock.json
+project.fragment.lock.json
+
+# ---- Rider / JetBrains ----
+.idea/
+*.sln.iml
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# ---- Visual Studio / VS Code ----
+.vs/
+.vscode/
+*.vsp
+*.vspx
+
+# ---- Результаты тестов и покрытие ----
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# ---- Прочее ----
+*.pdb
+*.tmp
+*.bak
+*.cache
+*.log
+.DS_Store
+Thumbs.db
