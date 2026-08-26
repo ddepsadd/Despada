@@ -3,11 +3,12 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*'   # v1.0.0
+      - '[0-9]*'    # 1.0.0
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Тег релиза (например v1.0.0)'
+        description: 'Тег релиза (например 1.0.0 или v1.0.0)'
         required: true
 
 permissions:
@@ -27,6 +28,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # При ручном запуске собираем именно указанный тег, а не master.
+          ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
 
       - name: Setup .NET
