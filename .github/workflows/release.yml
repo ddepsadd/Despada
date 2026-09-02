@@ -45,9 +45,11 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build
+      # publish, а не build: для библиотечного проекта только он кладёт рядом
+      # зависимости из NuGet (ImGui.NET, 0Harmony) и папку runtimes/.
+      - name: Publish
         run: |
-          dotnet build Despada.slnx -c Release \
+          dotnet publish Despada/Despada.csproj -c Release -o publish \
             -p:Version=${{ steps.version.outputs.version }} \
             -p:ContinuousIntegrationBuild=true
 
@@ -55,9 +57,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp Despada/bin/Release/net10.0/Despada.dll dist/
-          (cd Despada/bin/Release/net10.0 && zip -r "$GITHUB_WORKSPACE/dist/Despada-${{ steps.version.outputs.version }}.zip" .)
-          (cd dist && sha256sum Despada.dll "Despada-${{ steps.version.outputs.version }}.zip" > SHA256SUMS.txt)
+          cp publish/Despada.dll publish/ImGui.NET.dll publish/0Harmony.dll dist/
+          (cd publish && zip -r "$GITHUB_WORKSPACE/dist/Despada-${{ steps.version.outputs.version }}.zip" .)
+          (cd dist && sha256sum Despada.dll ImGui.NET.dll 0Harmony.dll \
+            "Despada-${{ steps.version.outputs.version }}.zip" > SHA256SUMS.txt)
           ls -la dist
 
       - name: Create GitHub Release
@@ -66,6 +69,8 @@ jobs:
         run: |
           gh release create "${{ steps.version.outputs.tag }}" \
             dist/Despada.dll \
+            dist/ImGui.NET.dll \
+            dist/0Harmony.dll \
             "dist/Despada-${{ steps.version.outputs.version }}.zip" \
             dist/SHA256SUMS.txt \
             --title "${{ steps.version.outputs.tag }}" \
