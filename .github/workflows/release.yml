@@ -53,14 +53,15 @@ jobs:
             -p:Version=${{ steps.version.outputs.version }} \
             -p:ContinuousIntegrationBuild=true
 
+      # В релиз идут только два файла: сам патч и ImGui.NET.
+      # Нативный cimgui вшит в Despada.dll как EmbeddedResource (NativeLoader),
+      # 0Harmony приходит от лаунчера — дублировать их не нужно.
       - name: Package
         shell: bash
         run: |
           mkdir -p dist
-          cp publish/Despada.dll publish/ImGui.NET.dll publish/0Harmony.dll dist/
-          (cd publish && zip -r "$GITHUB_WORKSPACE/dist/Despada-${{ steps.version.outputs.version }}.zip" .)
-          (cd dist && sha256sum Despada.dll ImGui.NET.dll 0Harmony.dll \
-            "Despada-${{ steps.version.outputs.version }}.zip" > SHA256SUMS.txt)
+          cp publish/Despada.dll publish/ImGui.NET.dll dist/
+          (cd dist && sha256sum Despada.dll ImGui.NET.dll > SHA256SUMS.txt)
           ls -la dist
 
       - name: Create GitHub Release
@@ -70,8 +71,6 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             dist/Despada.dll \
             dist/ImGui.NET.dll \
-            dist/0Harmony.dll \
-            "dist/Despada-${{ steps.version.outputs.version }}.zip" \
             dist/SHA256SUMS.txt \
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes \
