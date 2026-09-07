@@ -28,5 +28,3 @@ Corresponding Source under the same license, keeping all copyright and license
 notices intact, and preserving attribution.
 
 Third-party components: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
-![Typoi_dayn](image.png)
