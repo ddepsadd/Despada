@@ -6,12 +6,37 @@
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
+
+    <PropertyGroup>
+        <AssemblyTitle>Despada</AssemblyTitle>
+        <Product>Despada</Product>
+        <Description>Open source Space Station 14 subverter patch.</Description>
+        <Authors>ddepsadd</Authors>
+        <Company>ddepsadd</Company>
+        <Copyright>Copyright (C) 2026 ddepsadd. Licensed under AGPL-3.0-or-later.</Copyright>
+        <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/ddepsadd/Despada</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/ddepsadd/Despada</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <DebugType>embedded</DebugType>
+        <Deterministic>true</Deterministic>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <AssemblyMetadata Include="License" Value="AGPL-3.0-or-later" />
+        <AssemblyMetadata Include="LicenseUrl" Value="https://github.com/ddepsadd/Despada/blob/master/LICENSE.md" />
+        <AssemblyMetadata Include="SourceUrl" Value="https://github.com/ddepsadd/Despada" />
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
         <PackageReference Include="Lib.Harmony" Version="2.4.2" />
     </ItemGroup>
-    
+
     <ItemGroup>
+        <EmbeddedResource Include="..\LICENSE.md" LogicalName="Despada.LICENSE.md" />
         <EmbeddedResource Include="Native\cimgui.dll" />
         <EmbeddedResource Include="Native\libcimgui.dylib" />
         <EmbeddedResource Include="Native\libcimgui.so" />

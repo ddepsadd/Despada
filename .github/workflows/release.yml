@@ -53,16 +53,38 @@ jobs:
             -p:Version=${{ steps.version.outputs.version }} \
             -p:ContinuousIntegrationBuild=true
 
-      # В релиз идут только два файла: сам патч и ImGui.NET.
+      # Бинарей в релизе два: сам патч и ImGui.NET.
       # Нативный cimgui вшит в Despada.dll как EmbeddedResource (NativeLoader),
       # 0Harmony приходит от лаунчера — дублировать их не нужно.
+      # Рядом едут лицензии, notices и указатель на Corresponding Source.
       - name: Package
         shell: bash
         run: |
-          mkdir -p dist
+          mkdir -p dist/licenses
           cp publish/Despada.dll publish/ImGui.NET.dll dist/
-          (cd dist && sha256sum Despada.dll ImGui.NET.dll > SHA256SUMS.txt)
-          ls -la dist
+          cp LICENSE.md THIRD-PARTY-NOTICES.md dist/
+          cp licenses/OFL-1.1.txt licenses/MIT.txt dist/licenses/
+
+          sha="$(git rev-parse HEAD)"
+          {
+            echo "Despada ${{ steps.version.outputs.tag }}"
+            echo "Copyright (C) 2026 ddepsadd"
+            echo
+            echo "Licensed under the GNU Affero General Public License v3.0 or later."
+            echo "See LICENSE.md. Third-party components: THIRD-PARTY-NOTICES.md."
+            echo
+            echo "Corresponding Source for these binaries (AGPL-3.0 section 6d)"
+            echo "is available from the same place, at the exact commit they were"
+            echo "built from:"
+            echo
+            echo "  https://github.com/ddepsadd/Despada/tree/${sha}"
+            echo "  commit: ${sha}"
+          } > dist/SOURCE.txt
+
+          (cd dist && sha256sum Despada.dll ImGui.NET.dll LICENSE.md \
+            THIRD-PARTY-NOTICES.md SOURCE.txt \
+            licenses/OFL-1.1.txt licenses/MIT.txt > SHA256SUMS.txt)
+          ls -laR dist
 
       - name: Create GitHub Release
         env:
@@ -71,6 +93,11 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             dist/Despada.dll \
             dist/ImGui.NET.dll \
+            dist/LICENSE.md \
+            dist/THIRD-PARTY-NOTICES.md \
+            dist/SOURCE.txt \
+            dist/licenses/OFL-1.1.txt \
+            dist/licenses/MIT.txt \
             dist/SHA256SUMS.txt \
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes \
