@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using System.Globalization;
 using System.Numerics;
 using ImGuiNET;
 
@@ -19,198 +20,126 @@ public static partial class Widgets
     private static readonly uint TrackFillL  = Theme.ToU32(Theme.Violet);
     private static readonly uint TrackFillR  = Theme.ToU32(Theme.Cyan);
 
-    private static string? _editingSlider;
-    private static string  _editBuffer = "";
-    private static float   _lastSliderKnobX;
+    private static readonly StateStore<float> _sliderKnobX = new();
 
+    private static uint   _editSliderId;
+    private static int    _editStartFrame;
+    private static string _editBuffer = "";
+
+    /// <param name="decimals">Digits after the point — used for display, input and rounding.</param>
+    /// <param name="step">Arrow button step; 0 hides the arrows.</param>
     public static bool SliderFloat(string label, ref float value, float min, float max,
-        string format = "%.0f", string suffix = "", float step = 1f)
+        int decimals = 1, string suffix = "", float step = 0f)
+    {
+        double v = value;
+        if (!SliderCore(label, ref v, min, max, decimals, suffix, step))
+            return false;
+        value = (float)v;
+        return true;
+    }
+
+    /// <param name="step">Arrow button step; 0 hides the arrows.</param>
+    public static bool SliderInt(string label, ref int value, int min, int max,
+        string suffix = "", int step = 1)
+    {
+        double v = value;
+        if (!SliderCore(label, ref v, min, max, 0, suffix, step))
+            return false;
+        value = (int)v;
+        return true;
+    }
+
+    private static bool SliderCore(string label, ref double value, double min, double max,
+        int decimals, string suffix, double step)
     {
         ImGuiNET.ImGui.Spacing();
+        ImGuiNET.ImGui.PushID(label);
 
         var dl       = ImGuiNET.ImGui.GetWindowDrawList();
         var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
         var pos      = ImGuiNET.ImGui.GetCursorScreenPos();
         var dt       = ImGuiNET.ImGui.GetIO().DeltaTime;
-
-        var displayLabel = label.Contains("##") ? label[..label.IndexOf("##")] : label;
-        if (string.IsNullOrEmpty(displayLabel))
-        {
-            var colonIdx = format.IndexOf(':');
-            displayLabel = colonIdx >= 0 ? format[..colonIdx].Trim() : "Value";
-        }
-
-        var decimals = 0;
-        var dotIdx = format.IndexOf('.');
-        if (dotIdx >= 0 && dotIdx + 1 < format.Length && char.IsDigit(format[dotIdx + 1]))
-            decimals = format[dotIdx + 1] - '0';
-
-        var valueStr   = value.ToString($"F{decimals}");
-        var displayVal = string.IsNullOrEmpty(suffix) ? valueStr : $"{valueStr} {suffix}";
+        var changed  = false;
 
         var labelH = ImGuiNET.ImGui.GetTextLineHeightWithSpacing();
-        var changed = false;
+        var boxH   = labelH + 6f;
+        var knobH  = SliderKnobR * 2f;
+        var trackY = pos.Y + labelH + 8f;
+        var trackW = contentW - SliderBoxPad;
+        var totalH = labelH + 8f + knobH + 8f;
 
-        ImGuiNET.ImGui.TextUnformatted(displayLabel.Trim());
+        dl.AddText(pos, ImGuiNET.ImGui.GetColorU32(ImGuiCol.Text), DisplayLabel(label).Trim());
 
-        var showArrows = step > 0f;
+        var showArrows = step > 0;
         var totalBoxW  = SliderBoxW + (showArrows ? ArrowBtnW * 2f + 4f : 0f);
-        var boxH       = labelH + 6f;
-        var groupRight = pos.X + contentW - SliderBoxPad;
-        var groupLeft  = groupRight - totalBoxW;
-
-        var isEditing = _editingSlider == label;
+        var groupLeft  = pos.X + contentW - SliderBoxPad - totalBoxW;
+        var boxX       = groupLeft + (showArrows ? ArrowBtnW + 2f : 0f);
+        var boxMin     = new Vector2(boxX, pos.Y - 1f);
+        var boxMax     = new Vector2(boxX + SliderBoxW, boxMin.Y + boxH);
+        var boxRound   = showArrows ? 0f : 4f;
 
         if (showArrows)
         {
-            var arrowLMin = new Vector2(groupLeft, pos.Y - 1f);
-            var arrowLMax = new Vector2(arrowLMin.X + ArrowBtnW, arrowLMin.Y + boxH);
-
-            bool arrowLHov = ImGuiNET.ImGui.IsMouseHoveringRect(arrowLMin, arrowLMax);
-            dl.AddRectFilled(arrowLMin, arrowLMax,
-                Theme.ToU32(arrowLHov ? Theme.BgHover : Theme.BgElevated), 4f, ImDrawFlags.RoundCornersLeft);
-
-            var aSzL = ImGuiNET.ImGui.CalcTextSize("<");
-            dl.AddText(
-                new Vector2(arrowLMin.X + (ArrowBtnW - aSzL.X) * 0.5f, arrowLMin.Y + (boxH - aSzL.Y) * 0.5f),
-                Theme.ToU32(arrowLHov ? Theme.TextPrimary : Theme.TextSecondary), "<");
-
-            if (arrowLHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            var aMin = new Vector2(groupLeft, pos.Y - 1f);
+            if (DrawArrowButton(dl, "##dec", "<", aMin, boxH, ImDrawFlags.RoundCornersLeft))
             {
-                value = MathF.Max(min, value - step);
+                value = SnapValue(value - step, min, max, decimals);
                 changed = true;
             }
         }
 
-        var boxX   = groupLeft + (showArrows ? ArrowBtnW + 2f : 0f);
-        var boxMin = new Vector2(boxX, pos.Y - 1f);
-        var boxMax = new Vector2(boxX + SliderBoxW, boxMin.Y + boxH);
-
-        if (isEditing)
+        var boxId = ImGuiNET.ImGui.GetID("##box");
+        if (_editSliderId == boxId)
         {
-            dl.AddRectFilled(boxMin, boxMax, Theme.ToU32(SectionBg), showArrows ? 0f : 4f);
-            dl.AddRect(boxMin, boxMax, Theme.ToU32(Theme.BorderActive), showArrows ? 0f : 4f);
-
-            var io = ImGuiNET.ImGui.GetIO();
-
-            for (int ci = 0; ci < io.InputQueueCharacters.Size; ci++)
-            {
-                var ch = (char)io.InputQueueCharacters[ci];
-                if (ch >= 32 && (char.IsDigit(ch) || ch == '.' || ch == '-' || ch == ',') && _editBuffer.Length < 4)
-                    _editBuffer += ch;
-            }
-
-            if (ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.Backspace) && _editBuffer.Length > 0)
-                _editBuffer = _editBuffer[..^1];
-
-            if (ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.KeypadEnter))
-            {
-                if (float.TryParse(_editBuffer, System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-                    value = MathF.Max(min, MathF.Min(max, parsed));
-
-                _editingSlider = null;
+            if (DrawSliderEditor(boxMin, boxH, min, max, decimals, ref value))
                 changed = true;
-            }
-
-            if (ImGuiNET.ImGui.IsKeyPressed(ImGuiKey.Escape))
-                _editingSlider = null;
-
-            if (ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left) &&
-                !ImGuiNET.ImGui.IsMouseHoveringRect(boxMin, boxMax))
-            {
-                if (float.TryParse(_editBuffer, System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-                    value = MathF.Max(min, MathF.Min(max, parsed));
-
-                _editingSlider = null;
-                changed = true;
-            }
-
-            var bufSz = ImGuiNET.ImGui.CalcTextSize(_editBuffer);
-            var bufPos = new Vector2(
-                boxMin.X + (SliderBoxW - bufSz.X) * 0.5f,
-                boxMin.Y + (boxH - bufSz.Y) * 0.5f);
-
-            dl.AddText(bufPos, Theme.ToU32(Theme.TextPrimary), _editBuffer);
-
-            var cursorOn = ((int)(ImGuiNET.ImGui.GetTime() * 2.5f)) % 2 == 0;
-            if (cursorOn)
-            {
-                var cursorX = bufPos.X + bufSz.X + 1f;
-                var cursorY1 = boxMin.Y + 4f;
-                var cursorY2 = boxMax.Y - 4f;
-                dl.AddLine(new Vector2(cursorX, cursorY1), new Vector2(cursorX, cursorY2),
-                    Theme.ToU32(Theme.TextPrimary), 1f);
-            }
         }
         else
         {
-            dl.AddRectFilled(boxMin, boxMax, Theme.ToU32(SectionBg), showArrows ? 0f : 4f);
-            dl.AddRect(boxMin, boxMax, Theme.ToU32(Theme.Border), showArrows ? 0f : 4f);
+            if (ButtonAt("##box", boxMin, new Vector2(SliderBoxW, boxH), out var boxHov))
+            {
+                _editSliderId   = boxId;
+                _editStartFrame = ImGuiNET.ImGui.GetFrameCount();
+                _editBuffer     = FormatValue(value, decimals);
+            }
 
+            dl.AddRectFilled(boxMin, boxMax, Theme.ToU32(SectionBg), boxRound);
+            dl.AddRect(boxMin, boxMax, Theme.ToU32(boxHov ? Theme.BorderHover : Theme.Border), boxRound);
+
+            var valueStr   = FormatValue(value, decimals);
+            var displayVal = string.IsNullOrEmpty(suffix) ? valueStr : $"{valueStr} {suffix}";
             var vSz = ImGuiNET.ImGui.CalcTextSize(displayVal);
             dl.AddText(
                 new Vector2(boxMin.X + (SliderBoxW - vSz.X) * 0.5f, boxMin.Y + (boxH - vSz.Y) * 0.5f),
                 Theme.ToU32(Theme.TextPrimary), displayVal);
-
-            if (ImGuiNET.ImGui.IsMouseHoveringRect(boxMin, boxMax) &&
-                ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-            {
-                _editingSlider = label;
-                _editBuffer = valueStr;
-            }
         }
 
         if (showArrows)
         {
-            var arrowRMin = new Vector2(boxMax.X + 2f, pos.Y - 1f);
-            var arrowRMax = new Vector2(arrowRMin.X + ArrowBtnW, arrowRMin.Y + boxH);
-
-            bool arrowRHov = ImGuiNET.ImGui.IsMouseHoveringRect(arrowRMin, arrowRMax);
-            dl.AddRectFilled(arrowRMin, arrowRMax,
-                Theme.ToU32(arrowRHov ? Theme.BgHover : Theme.BgElevated), 4f, ImDrawFlags.RoundCornersRight);
-
-            var aSzR = ImGuiNET.ImGui.CalcTextSize(">");
-            dl.AddText(
-                new Vector2(arrowRMin.X + (ArrowBtnW - aSzR.X) * 0.5f, arrowRMin.Y + (boxH - aSzR.Y) * 0.5f),
-                Theme.ToU32(arrowRHov ? Theme.TextPrimary : Theme.TextSecondary), ">");
-
-            if (arrowRHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            var aMin = new Vector2(boxMax.X + 2f, pos.Y - 1f);
+            if (DrawArrowButton(dl, "##inc", ">", aMin, boxH, ImDrawFlags.RoundCornersRight))
             {
-                value = MathF.Min(max, value + step);
+                value = SnapValue(value + step, min, max, decimals);
                 changed = true;
             }
         }
 
-        var trackY = pos.Y + labelH + 8f;
-        var trackW = contentW - SliderBoxPad;
-        var knobH  = SliderKnobR * 2f;
-        var totalH = labelH + 8f + knobH + 8f;
-
-        var winPos2 = ImGuiNET.ImGui.GetWindowPos();
-        ImGuiNET.ImGui.SetCursorPos(new Vector2(pos.X - winPos2.X, trackY - 2f - winPos2.Y));
-
-        ImGuiNET.ImGui.InvisibleButton($"{label}_track", new Vector2(trackW, knobH + 4f));
-
-        bool active  = ImGuiNET.ImGui.IsItemActive();
-        bool hovered = ImGuiNET.ImGui.IsItemHovered();
+        ButtonAt("##track", new Vector2(pos.X, trackY - 2f), new Vector2(trackW, knobH + 4f), out var hovered);
+        var trackId = ImGuiNET.ImGui.GetItemID();
+        bool active = ImGuiNET.ImGui.IsItemActive();
 
         if (active)
         {
-            var mouseX = ImGuiNET.ImGui.GetIO().MousePos.X;
-            var t = (mouseX - pos.X) / trackW;
-            t = MathF.Max(0f, MathF.Min(1f, t));
-
-            var newVal = min + (max - min) * t;
-            if (MathF.Abs(newVal - value) > 0.001f)
+            var t = Math.Clamp((ImGuiNET.ImGui.GetIO().MousePos.X - pos.X) / trackW, 0f, 1f);
+            var newVal = SnapValue(min + (max - min) * t, min, max, decimals);
+            if (newVal != value)
             {
                 value = newVal;
                 changed = true;
             }
         }
 
-        var frac = MathF.Max(0f, MathF.Min(1f, (value - min) / (max - min)));
+        var frac = max > min ? (float)Math.Clamp((value - min) / (max - min), 0.0, 1.0) : 0f;
 
         var trkMin = new Vector2(pos.X, trackY + (knobH - SliderTrackH) * 0.5f);
         var trkMax = new Vector2(pos.X + trackW, trkMin.Y + SliderTrackH);
@@ -229,8 +158,7 @@ public static partial class Widgets
                 TrackFillL, TrackFillR, TrackFillR, TrackFillL);
         }
 
-        var knobAnimId = $"{label}_knob";
-        var knobT = GetToggleT(knobAnimId, active);
+        var knobT = Animate(ImGuiNET.ImGui.GetID("##knob"), active);
 
         var knobX  = pos.X + trackW * frac;
         var knobCY = trackY + knobH * 0.5f;
@@ -245,21 +173,88 @@ public static partial class Widgets
             new Vector2(knobX + pillW, knobCY + pillH),
             Theme.ToU32(knobColor), pillR);
 
-        var dragVelX = (knobX - _lastSliderKnobX) / MathF.Max(dt, 0.001f);
+        ref var lastKnobX = ref _sliderKnobX.Get(trackId, knobX);
+        var dragVelX = (knobX - lastKnobX) / MathF.Max(dt, 0.001f);
+        lastKnobX = knobX;
 
         if (active && changed && MathF.Abs(dragVelX) > 20f)
             SpawnSparks(new Vector2(knobX, knobCY), dragVelX, 3);
 
-        _lastSliderKnobX = knobX;
+        // Everything above was placed absolutely; reserve the whole block as one item.
+        ImGuiNET.ImGui.SetCursorScreenPos(pos);
+        ImGuiNET.ImGui.Dummy(new Vector2(contentW, totalH));
 
-        var fgDl = ImGuiNET.ImGui.GetForegroundDrawList();
-        UpdateSparks(fgDl, dt);
-
-        var winPosEnd = ImGuiNET.ImGui.GetWindowPos();
-        ImGuiNET.ImGui.SetCursorPos(new Vector2(pos.X - winPosEnd.X, pos.Y + totalH - winPosEnd.Y));
-        ImGuiNET.ImGui.Dummy(new Vector2(0f, 0f));
-
+        ImGuiNET.ImGui.PopID();
         ImGuiNET.ImGui.Spacing();
         return changed;
     }
+
+    private static bool DrawArrowButton(ImDrawListPtr dl, string id, string glyph, Vector2 min, float h,
+        ImDrawFlags corners)
+    {
+        var pressed = ButtonAt(id, min, new Vector2(ArrowBtnW, h), out var hov);
+        var max = new Vector2(min.X + ArrowBtnW, min.Y + h);
+
+        dl.AddRectFilled(min, max, Theme.ToU32(hov ? Theme.BgHover : Theme.BgElevated), 4f, corners);
+
+        var sz = ImGuiNET.ImGui.CalcTextSize(glyph);
+        dl.AddText(
+            new Vector2(min.X + (ArrowBtnW - sz.X) * 0.5f, min.Y + (h - sz.Y) * 0.5f),
+            Theme.ToU32(hov ? Theme.TextPrimary : Theme.TextSecondary), glyph);
+
+        return pressed;
+    }
+
+    /// <summary>Inline text editor over the value box. Commits on Enter / click-away, Esc cancels.</summary>
+    private static bool DrawSliderEditor(Vector2 boxMin, float boxH, double min, double max, int decimals,
+        ref double value)
+    {
+        var maxLen = (uint)Math.Max(FormatValue(min, decimals).Length, FormatValue(max, decimals).Length);
+        var frame  = ImGuiNET.ImGui.GetFrameCount();
+
+        var fontH = ImGuiNET.ImGui.GetFontSize();
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8f, MathF.Max(0f, (boxH - fontH) * 0.5f)));
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1f);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 0f);
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.FrameBg, SectionBg);
+        ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Border, Theme.BorderActive);
+
+        ImGuiNET.ImGui.SetCursorScreenPos(boxMin);
+        ImGuiNET.ImGui.SetNextItemWidth(SliderBoxW);
+        if (frame == _editStartFrame)
+            ImGuiNET.ImGui.SetKeyboardFocusHere();
+
+        ImGuiNET.ImGui.InputText("##edit", ref _editBuffer, maxLen,
+            ImGuiInputTextFlags.CharsDecimal | ImGuiInputTextFlags.AutoSelectAll);
+
+        // Focus lands a frame or two after SetKeyboardFocusHere — don't treat that gap as "lost focus".
+        bool finished = ImGuiNET.ImGui.IsItemDeactivated()
+                     || (frame - _editStartFrame > 2 && !ImGuiNET.ImGui.IsItemActive());
+
+        ImGuiNET.ImGui.PopStyleColor(2);
+        ImGuiNET.ImGui.PopStyleVar(3);
+
+        if (!finished)
+            return false;
+
+        _editSliderId = 0;
+
+        // Esc reverts the buffer before deactivating, so it commits the original value — a no-op.
+        if (!double.TryParse(_editBuffer.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture,
+                out var parsed))
+            return false;
+
+        var snapped = SnapValue(parsed, min, max, decimals);
+        if (snapped == value)
+            return false;
+
+        value = snapped;
+        return true;
+    }
+
+    private static double SnapValue(double v, double min, double max, int decimals)
+        => Math.Clamp(Math.Round(v, decimals, MidpointRounding.AwayFromZero), min, max);
+
+    private static string FormatValue(double v, int decimals)
+        => v.ToString("F" + decimals, CultureInfo.InvariantCulture);
 }

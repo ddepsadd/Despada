@@ -15,26 +15,9 @@ public static partial class Widgets
     private const float KnobPad     = 3f;
     private const float ToggleSpeed = 20f;
 
-    private static readonly Dictionary<string, float> _toggleAnim = new();
-
-    private static float GetToggleT(string id, bool value)
+    private static void DrawToggleAt(ImDrawListPtr dl, Vector2 pos, bool value, bool hovered, uint id)
     {
-        if (!_toggleAnim.TryGetValue(id, out var t))
-            t = value ? 1f : 0f;
-
-        if (_toggleUpdatedThisFrame.Add(id))
-        {
-            var target = value ? 1f : 0f;
-            t = Anim.Lerp(t, target, ToggleSpeed, ImGuiNET.ImGui.GetIO().DeltaTime);
-            _toggleAnim[id] = t;
-        }
-
-        return t;
-    }
-
-    private static void DrawToggleAt(ImDrawListPtr dl, Vector2 pos, bool value, bool hovered, string id)
-    {
-        var t = GetToggleT(id, value);
+        var t = Animate(id, value);
 
         var min    = pos;
         var max    = new Vector2(pos.X + ToggleW, pos.Y + ToggleH);
@@ -76,14 +59,12 @@ public static partial class Widgets
     {
         var pos = ImGuiNET.ImGui.GetCursorScreenPos();
 
-        ImGuiNET.ImGui.InvisibleButton(id, new Vector2(ToggleW, ToggleH));
-        bool hovered = ImGuiNET.ImGui.IsItemHovered();
-
-        bool clicked = hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+        var clicked = ImGuiNET.ImGui.InvisibleButton(id, new Vector2(ToggleW, ToggleH));
         if (clicked)
             value = !value;
 
-        DrawToggleAt(ImGuiNET.ImGui.GetWindowDrawList(), pos, value, hovered, id);
+        DrawToggleAt(ImGuiNET.ImGui.GetWindowDrawList(), pos, value,
+            ImGuiNET.ImGui.IsItemHovered(), ImGuiNET.ImGui.GetItemID());
         return clicked;
     }
 
@@ -94,10 +75,12 @@ public static partial class Widgets
         var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
 
         ImGuiNET.ImGui.AlignTextToFramePadding();
-        ImGuiNET.ImGui.TextUnformatted(label);
+        ImGuiNET.ImGui.TextUnformatted(DisplayLabel(label));
         ImGuiNET.ImGui.SameLine(contentW - ToggleW);
 
-        var result = Toggle($"##{label}_tgl", ref value);
+        ImGuiNET.ImGui.PushID(label);
+        var result = Toggle("##tgl", ref value);
+        ImGuiNET.ImGui.PopID();
 
         ImGuiNET.ImGui.Spacing();
         return result;

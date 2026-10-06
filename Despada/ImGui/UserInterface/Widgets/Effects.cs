@@ -16,7 +16,7 @@ public static partial class Widgets
     }
 
     private static readonly List<Spark> _sparks = new();
-    private static readonly Random _rng = new();
+    private static readonly Random _rng = Random.Shared;
 
     private static void UpdateSparks(ImDrawListPtr dl, float dt)
     {

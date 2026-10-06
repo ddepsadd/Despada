@@ -30,7 +30,8 @@ public static class ImGuiRenderer
     public static volatile bool OverlayVisible = false;
     private static bool _prevOverlayVisible = false;
 
-    public static bool ShowDemoWindow = true;
+    public static bool ShowDemoWindow;
+    public static bool ShowMetricsWindow;
     
     private static readonly System.Diagnostics.Stopwatch _stopwatch = System.Diagnostics.Stopwatch.StartNew();
     
@@ -503,6 +504,9 @@ public static class ImGuiRenderer
     private static void DrawUI()
     {
         MainMenu.Draw();
+
+        if (ShowMetricsWindow) ImGuiNET.ImGui.ShowMetricsWindow(ref ShowMetricsWindow);
+        if (ShowDemoWindow)    ImGuiNET.ImGui.ShowDemoWindow(ref ShowDemoWindow);
     }
 
     public static void Shutdown()

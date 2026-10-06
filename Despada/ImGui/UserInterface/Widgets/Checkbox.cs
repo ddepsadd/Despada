@@ -16,10 +16,10 @@ public static partial class Widgets
     {
         var pos = ImGuiNET.ImGui.GetCursorScreenPos();
 
-        ImGuiNET.ImGui.InvisibleButton(id, new Vector2(CheckboxSize, CheckboxSize));
+        bool clicked = ImGuiNET.ImGui.InvisibleButton(id, new Vector2(CheckboxSize, CheckboxSize));
         bool hovered = ImGuiNET.ImGui.IsItemHovered();
+        var  itemId  = ImGuiNET.ImGui.GetItemID();
 
-        bool clicked = hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left);
         if (clicked)
         {
             value = !value;
@@ -31,7 +31,7 @@ public static partial class Widgets
         }
 
         var dl = ImGuiNET.ImGui.GetWindowDrawList();
-        var t = GetToggleT(id, value);
+        var t = Animate(itemId, value);
 
         var min = pos;
         var max = new Vector2(pos.X + CheckboxSize, pos.Y + CheckboxSize);
@@ -75,10 +75,12 @@ public static partial class Widgets
         var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
 
         ImGuiNET.ImGui.AlignTextToFramePadding();
-        ImGuiNET.ImGui.TextUnformatted(label);
+        ImGuiNET.ImGui.TextUnformatted(DisplayLabel(label));
         ImGuiNET.ImGui.SameLine(contentW - CheckboxSize);
 
-        var result = Checkbox($"##{label}_cb", ref value);
+        ImGuiNET.ImGui.PushID(label);
+        var result = Checkbox("##cb", ref value);
+        ImGuiNET.ImGui.PopID();
 
         ImGuiNET.ImGui.Spacing();
         return result;

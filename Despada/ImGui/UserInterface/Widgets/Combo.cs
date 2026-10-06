@@ -9,11 +9,16 @@ namespace Despada.ImGui.UserInterface;
 
 public static partial class Widgets
 {
-    private static readonly Dictionary<string, int> _comboPage = new();
+    private static readonly StateStore<int> _comboPage = new();
+    private static readonly Dictionary<string, string[]> _comboItemsCache = new();
 
     public static bool Combo(string label, ref int current, string items)
     {
-        var parsed = items.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+        if (!_comboItemsCache.TryGetValue(items, out var parsed))
+        {
+            parsed = items.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+            _comboItemsCache[items] = parsed;
+        }
         return Combo(label, ref current, parsed);
     }
 
@@ -40,10 +45,12 @@ public static partial class Widgets
         var pos  = ImGuiNET.ImGui.GetCursorScreenPos();
         var changed = false;
 
-        var dLabel  = label.Contains("##") ? label[..label.IndexOf("##")] : label;
-        var pid     = $"{label}_p";
-        bool isOpen = ImGuiNET.ImGui.IsPopupOpen(pid);
-        var openT   = GetToggleT($"{label}_open", isOpen);
+        var dLabel = DisplayLabel(label);
+
+        ImGuiNET.ImGui.PushID(label);
+        var pageId  = ImGuiNET.ImGui.GetID("##page");
+        bool isOpen = ImGuiNET.ImGui.IsPopupOpen("##popup");
+        var openT   = Animate(ImGuiNET.ImGui.GetID("##open"), isOpen);
 
         if (!string.IsNullOrEmpty(dLabel))
         {
@@ -57,12 +64,12 @@ public static partial class Widgets
         var bMin = pos;
         var bMax = new Vector2(pos.X + boxW, pos.Y + boxH);
 
-        ImGuiNET.ImGui.InvisibleButton($"{label}_b", new Vector2(boxW, boxH));
+        bool bPressed = ImGuiNET.ImGui.InvisibleButton("##box", new Vector2(boxW, boxH));
         bool bH = ImGuiNET.ImGui.IsItemHovered();
-        if (bH && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+        if (bPressed && !isOpen)
         {
-            ImGuiNET.ImGui.OpenPopup(pid);
-            _comboPage[label] = current >= maxVis ? current - maxVis + 1 : 0;
+            ImGuiNET.ImGui.OpenPopup("##popup");
+            _comboPage.Get(pageId, 0) = current >= maxVis ? current - maxVis + 1 : 0;
         }
 
         dl.AddRectFilled(bMin, bMax, Theme.ToU32(SectionBg), boxR);
@@ -89,7 +96,7 @@ public static partial class Widgets
             Theme.ToU32(isOpen ? Theme.TextPrimary : Theme.TextSecondary), chev);
 
         bool needPaging = items.Length > maxVis;
-        _comboPage.TryGetValue(label, out int pageOff);
+        int pageOff = _comboPage.Get(pageId, 0);
         int maxOff = Math.Max(0, items.Length - maxVis);
         pageOff = Math.Clamp(pageOff, 0, maxOff);
         int visN = Math.Min(items.Length, maxVis);
@@ -114,18 +121,17 @@ public static partial class Widgets
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.PopupBg, Theme.BgElevated);
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Border, Theme.HexA(0xFFFFFF, 0.10f));
 
-        if (ImGuiNET.ImGui.BeginPopup(pid,
+        if (ImGuiNET.ImGui.BeginPopup("##popup",
             ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize))
         {
             var p  = ImGuiNET.ImGui.GetWindowDrawList();
             var wP = ImGuiNET.ImGui.GetWindowPos();
-            ImGuiNET.ImGui.Dummy(new Vector2(totalW, stripH));
 
             float curX = wP.X;
 
             var xMin = new Vector2(curX, wP.Y);
             var xMax = new Vector2(curX + closeW, wP.Y + stripH);
-            bool xHov = ImGuiNET.ImGui.IsMouseHoveringRect(xMin, xMax);
+            bool xPressed = ButtonAt("##close", xMin, xMax - xMin, out var xHov);
             if (xHov)
                 p.AddRectFilled(xMin, xMax, Theme.ToU32(Theme.BgHover), stripR, ImDrawFlags.RoundCornersLeft);
 
@@ -134,7 +140,7 @@ public static partial class Widgets
                 new Vector2(xMin.X + (closeW - xTs.X) * 0.5f, xMin.Y + (stripH - xTs.Y) * 0.5f),
                 Theme.ToU32(xHov ? Theme.TextPrimary : Theme.TextSecondary), "X");
 
-            if (xHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            if (xPressed)
                 ImGuiNET.ImGui.CloseCurrentPopup();
 
             p.AddLine(new Vector2(xMax.X, wP.Y + sepInset), new Vector2(xMax.X, wP.Y + stripH - sepInset), sepCol);
@@ -144,7 +150,7 @@ public static partial class Widgets
             {
                 var aMin = new Vector2(curX, wP.Y);
                 var aMax = new Vector2(curX + arrowW, wP.Y + stripH);
-                bool aH = ImGuiNET.ImGui.IsMouseHoveringRect(aMin, aMax);
+                bool aPressed = ButtonAt("##prev", aMin, aMax - aMin, out var aH);
                 bool canL = pageOff > 0;
 
                 if (aH && canL)
@@ -155,8 +161,8 @@ public static partial class Widgets
                     new Vector2(aMin.X + (arrowW - aTs.X) * 0.5f, aMin.Y + (stripH - aTs.Y) * 0.5f),
                     Theme.ToU32(canL ? Theme.TextSecondary : Theme.TextDisabled), "<");
 
-                if (aH && canL && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-                    _comboPage[label] = --pageOff;
+                if (aPressed && canL)
+                    _comboPage.Get(pageId, 0) = --pageOff;
 
                 p.AddLine(new Vector2(aMax.X, wP.Y + sepInset), new Vector2(aMax.X, wP.Y + stripH - sepInset), sepCol);
                 curX += arrowW;
@@ -169,7 +175,9 @@ public static partial class Widgets
 
                 var oMin = new Vector2(curX, wP.Y);
                 var oMax = new Vector2(curX + iW, wP.Y + stripH);
-                bool oHov = ImGuiNET.ImGui.IsMouseHoveringRect(oMin, oMax);
+                ImGuiNET.ImGui.PushID(i);
+                bool oPressed = ButtonAt("##opt", oMin, oMax - oMin, out var oHov);
+                ImGuiNET.ImGui.PopID();
                 bool sel  = i == current;
 
                 var cf = (vi == visN - 1 && !needPaging) ? ImDrawFlags.RoundCornersRight : ImDrawFlags.None;
@@ -198,7 +206,7 @@ public static partial class Widgets
                 if (vi < visN - 1)
                     p.AddLine(new Vector2(oMax.X, wP.Y + sepInset), new Vector2(oMax.X, wP.Y + stripH - sepInset), sepCol);
 
-                if (oHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                if (oPressed)
                 {
                     current = i;
                     changed = true;
@@ -214,7 +222,7 @@ public static partial class Widgets
 
                 var aMin = new Vector2(curX, wP.Y);
                 var aMax = new Vector2(curX + arrowW, wP.Y + stripH);
-                bool aH = ImGuiNET.ImGui.IsMouseHoveringRect(aMin, aMax);
+                bool aPressed = ButtonAt("##next", aMin, aMax - aMin, out var aH);
                 bool canR = pageOff < maxOff;
 
                 if (aH && canR)
@@ -225,15 +233,20 @@ public static partial class Widgets
                     new Vector2(aMin.X + (arrowW - aTs.X) * 0.5f, aMin.Y + (stripH - aTs.Y) * 0.5f),
                     Theme.ToU32(canR ? Theme.TextSecondary : Theme.TextDisabled), ">");
 
-                if (aH && canR && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-                    _comboPage[label] = ++pageOff;
+                if (aPressed && canR)
+                    _comboPage.Get(pageId, 0) = ++pageOff;
             }
+
+            // Items above were placed absolutely; reserve the strip as one block.
+            ImGuiNET.ImGui.SetCursorScreenPos(wP);
+            ImGuiNET.ImGui.Dummy(new Vector2(totalW, stripH));
 
             ImGuiNET.ImGui.EndPopup();
         }
 
         ImGuiNET.ImGui.PopStyleColor(2);
         ImGuiNET.ImGui.PopStyleVar(3);
+        ImGuiNET.ImGui.PopID();
 
         ImGuiNET.ImGui.Spacing();
         return changed;

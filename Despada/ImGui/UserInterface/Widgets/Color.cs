@@ -16,7 +16,7 @@ public static partial class Widgets
         public bool HexDirty;
     }
 
-    private static readonly Dictionary<string, ColorPickerState> _colorPickerState = new();
+    private static readonly StateStore<ColorPickerState?> _colorPickerState = new();
 
     public static bool ColorPickerRow(string label, ref Vector4 color)
     {
@@ -45,20 +45,18 @@ public static partial class Widgets
 
         var changed   = false;
         var contentW  = ImGuiNET.ImGui.GetContentRegionAvail().X;
-        var popupId   = $"##{label}_popup";
-        var previewId = $"##{label}_preview";
-        var stateId   = $"##{label}_state";
+        const string popupId = "##popup";
 
-        var state = GetColorPickerState(stateId);
-        SyncHexBufferFromColor(state, color);
-
-        ImGuiNET.ImGui.TextUnformatted(label);
+        ImGuiNET.ImGui.TextUnformatted(DisplayLabel(label));
         ImGuiNET.ImGui.SameLine(contentW - previewW);
 
-        ImGuiNET.ImGui.InvisibleButton(previewId, new Vector2(previewW, previewH));
+        ImGuiNET.ImGui.PushID(label);
 
+        var state = GetColorPickerState(ImGuiNET.ImGui.GetID("##state"));
+        SyncHexBufferFromColor(state, color);
+
+        bool clicked = ImGuiNET.ImGui.InvisibleButton("##preview", new Vector2(previewW, previewH));
         bool hovered = ImGuiNET.ImGui.IsItemHovered();
-        bool clicked = hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left);
 
         if (clicked)
         {
@@ -157,20 +155,16 @@ public static partial class Widgets
 
         ImGuiNET.ImGui.PopStyleColor(2);
         ImGuiNET.ImGui.PopStyleVar(2);
+        ImGuiNET.ImGui.PopID();
 
         ImGuiNET.ImGui.Spacing();
         return changed;
     }
 
-    private static ColorPickerState GetColorPickerState(string id)
+    private static ColorPickerState GetColorPickerState(uint id)
     {
-        if (!_colorPickerState.TryGetValue(id, out var state))
-        {
-            state = new ColorPickerState();
-            _colorPickerState[id] = state;
-        }
-
-        return state;
+        ref var state = ref _colorPickerState.Get(id, null);
+        return state ??= new ColorPickerState();
     }
 
     private static void SyncHexBufferFromColor(ColorPickerState state, Vector4 color, bool force = false)
@@ -205,7 +199,9 @@ public static partial class Widgets
             if (i > 0 && i % cols != 0)
                 ImGuiNET.ImGui.SameLine(0f, gap);
 
-            ImGuiNET.ImGui.InvisibleButton($"##{label}_preset_{i}", new Vector2(cellSize, cellSize));
+            ImGuiNET.ImGui.PushID(i);
+            bool pressed = ImGuiNET.ImGui.InvisibleButton("##preset", new Vector2(cellSize, cellSize));
+            ImGuiNET.ImGui.PopID();
 
             var min = ImGuiNET.ImGui.GetItemRectMin();
             var max = ImGuiNET.ImGui.GetItemRectMax();
@@ -229,7 +225,7 @@ public static partial class Widgets
                 dl.AddCircle(c, 4.5f, Theme.ToU32(Theme.HexA(0x000000, 0.50f)), 0, 1.5f);
             }
 
-            if (hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            if (pressed)
             {
                 color = presets[i];
                 changed = true;

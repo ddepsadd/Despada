@@ -11,20 +11,11 @@ namespace Despada.ImGui.UserInterface;
 
 public static class MainMenu
 {
-    private static readonly string[] TabIcons  = ["\uF06E", "\uF0E7", "\uF05B", "\uF0AD"];
-    private static readonly string[] TabLabels = ["Visuals", "Movement", "Combat", "Misc"];
+    private readonly record struct Tab(string Icon, string Label, string[] SubTabs, Action<int, int> Draw);
 
-    private const string SettingsIcon  = "\uF013";
-    private const string SettingsLabel = "Settings";
-    private const int    SettingsIndex = 4;
-
-    private static readonly string[][] SubTabs =
+    private static readonly Tab[] Tabs =
     [
-        ["Players", "Items", "World"],
-        ["Speed", "Teleport"],
-        ["Targeting", "Automation"],
-        ["Utilities", "Info"],
-        ["General", "Appearance", "Debug"],
+        new("\uF188", "Debug", ["Overlay", "Widgets"], DebugTab.Draw),
     ];
 
     private static int _activeTab;
@@ -86,6 +77,8 @@ public static class MainMenu
         DrawTopBar(dl, winPos, font);
         DrawContent();
 
+        Widgets.EndFrame();
+
         ImGuiNET.ImGui.End();
     }
 
@@ -113,10 +106,8 @@ public static class MainMenu
         var ifs = font.FontSize * IconScale;
         var ty  = wp.Y + TopBarH + 12f;
 
-        for (int i = 0; i < TabIcons.Length; i++)
-            SidebarTab(dl, font, ifs, wp, ty + TabH * i, TabIcons[i], TabLabels[i], i);
-
-        SidebarTab(dl, font, ifs, wp, max.Y - TabH, SettingsIcon, SettingsLabel, SettingsIndex);
+        for (int i = 0; i < Tabs.Length; i++)
+            SidebarTab(dl, font, ifs, wp, ty + TabH * i, Tabs[i].Icon, Tabs[i].Label, i);
     }
 
     private static readonly uint BarTop    = Theme.ToU32(Theme.Violet);
@@ -130,8 +121,12 @@ public static class MainMenu
         var tMax = new Vector2(wp.X + SidebarW - 1f, y + TabH);
 
         bool active  = idx == _activeTab;
-        bool hovered = ImGuiNET.ImGui.IsMouseHoveringRect(tMin, tMax);
-        bool clicked = hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+
+        ImGuiNET.ImGui.SetCursorScreenPos(tMin);
+        ImGuiNET.ImGui.PushID(idx);
+        bool clicked = ImGuiNET.ImGui.InvisibleButton("##tab", tMax - tMin);
+        bool hovered = ImGuiNET.ImGui.IsItemHovered();
+        ImGuiNET.ImGui.PopID();
 
         if (active)       dl.AddRectFilled(tMin, tMax, Theme.ToU32(Theme.CyanMuted));
         else if (hovered) dl.AddRectFilled(tMin, tMax, Theme.ToU32(Theme.BgHover));
@@ -173,7 +168,7 @@ public static class MainMenu
 
         dl.AddLine(new Vector2(bMin.X + 8f, bMax.Y), new Vector2(bMax.X - 8f, bMax.Y), SepLine);
 
-        var subs = SubTabs[_activeTab];
+        var subs = Tabs[_activeTab].SubTabs;
         var sx   = bMin.X + 24f;
         var subFs = font.FontSize * 1.05f;
 
@@ -185,7 +180,12 @@ public static class MainMenu
             var tMax = new Vector2(sx + tw, bMax.Y);
 
             bool active  = i == _activeSubTab;
-            bool hovered = ImGuiNET.ImGui.IsMouseHoveringRect(tMin, tMax);
+
+            ImGuiNET.ImGui.SetCursorScreenPos(tMin);
+            ImGuiNET.ImGui.PushID(i);
+            bool clicked = ImGuiNET.ImGui.InvisibleButton("##subtab", tMax - tMin);
+            bool hovered = ImGuiNET.ImGui.IsItemHovered();
+            ImGuiNET.ImGui.PopID();
 
             var c = active || hovered ? Theme.TextPrimary : Theme.TextSecondary;
             dl.AddText(font, subFs,
@@ -201,7 +201,7 @@ public static class MainMenu
                     BarTop, BarBottom, BarBottom, BarTop);
             }
 
-            if (hovered && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            if (clicked)
                 _activeSubTab = i;
 
             sx += tw;
@@ -243,15 +243,5 @@ public static class MainMenu
         ImGuiNET.ImGui.PopStyleColor();
     }
 
-    private static void RouteTab(int col)
-    {
-        switch (_activeTab)
-        {
-            case 0: VisualsTab.Draw(_activeSubTab, col);  break;
-            case 1: MovementTab.Draw(_activeSubTab, col);  break;
-            case 2: CombatTab.Draw(_activeSubTab, col);    break;
-            case 3: MiscTab.Draw(_activeSubTab, col);      break;
-            case 4: SettingsTab.Draw(_activeSubTab, col);  break;
-        }
-    }
+    private static void RouteTab(int col) => Tabs[_activeTab].Draw(_activeSubTab, col);
 }

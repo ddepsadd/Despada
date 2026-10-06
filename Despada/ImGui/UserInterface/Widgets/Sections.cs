@@ -16,7 +16,7 @@ public static partial class Widgets
 
         PushSectionStyle();
 
-        ImGuiNET.ImGui.BeginChild($"##section_{_sectionId}", new Vector2(availW, 0f),
+        ImGuiNET.ImGui.BeginChild(SectionChildId("##section"), new Vector2(availW, 0f),
             ImGuiChildFlags.AutoResizeY | ImGuiChildFlags.AlwaysAutoResize,
             ImGuiWindowFlags.NoScrollbar);
 
@@ -40,7 +40,7 @@ public static partial class Widgets
 
         PushSectionStyle();
 
-        ImGuiNET.ImGui.BeginChild($"##feature_{_sectionId}", new Vector2(availW, 0f),
+        ImGuiNET.ImGui.BeginChild(SectionChildId("##feature"), new Vector2(availW, 0f),
             ImGuiChildFlags.AutoResizeY | ImGuiChildFlags.AlwaysAutoResize,
             ImGuiWindowFlags.NoScrollbar);
 
@@ -51,13 +51,19 @@ public static partial class Widgets
         var contentW = ImGuiNET.ImGui.GetContentRegionAvail().X;
         var origin   = ImGuiNET.ImGui.GetCursorScreenPos();
 
-        ImGuiNET.ImGui.Dummy(new Vector2(contentW, HeaderH));
-
         var hL = origin.X + HeaderPad;
         var hR = origin.X + contentW - HeaderPad;
 
-        var toggleId = $"##ft_{_sectionId}";
-        var animT = GetToggleT(toggleId, enabled);
+        var tMin = new Vector2(hR - ToggleW, origin.Y + (HeaderH - ToggleH) * 0.5f);
+        if (ButtonAt("##ft", tMin, new Vector2(ToggleW, ToggleH), out var tHov))
+            enabled = !enabled;
+        var toggleId = ImGuiNET.ImGui.GetItemID();
+
+        // Reserve the whole header; the toggle above sits inside it.
+        ImGuiNET.ImGui.SetCursorScreenPos(origin);
+        ImGuiNET.ImGui.Dummy(new Vector2(contentW, HeaderH));
+
+        var animT = Animate(toggleId, enabled);
 
         var iconFs = font.FontSize * 2.0f;
         var iconSz = font.CalcTextSizeA(iconFs, float.MaxValue, 0f, icon);
@@ -92,15 +98,6 @@ public static partial class Widgets
         dl.AddText(new Vector2(textX, blockY + titleSz.Y + 3f),
             Theme.ToU32(Theme.TextDisabled), description);
 
-        var toggleX = hR - ToggleW;
-        var toggleY = origin.Y + (HeaderH - ToggleH) * 0.5f;
-        var tMin = new Vector2(toggleX, toggleY);
-        var tMax = new Vector2(toggleX + ToggleW, toggleY + ToggleH);
-
-        bool tHov = ImGuiNET.ImGui.IsMouseHoveringRect(tMin, tMax);
-        if (tHov && ImGuiNET.ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-            enabled = !enabled;
-
         DrawToggleAt(dl, tMin, enabled, tHov, toggleId);
 
         if (enabled)
@@ -123,6 +120,14 @@ public static partial class Widgets
         ImGuiNET.ImGui.EndChild();
         PopSectionStyle();
         ImGuiNET.ImGui.Dummy(new Vector2(0f, SectionGap));
+    }
+
+    private static uint SectionChildId(string kind)
+    {
+        ImGuiNET.ImGui.PushID(_sectionId);
+        var id = ImGuiNET.ImGui.GetID(kind);
+        ImGuiNET.ImGui.PopID();
+        return id;
     }
 
     private static void PushSectionStyle()
