@@ -4,7 +4,6 @@
 
 using System.Numerics;
 using Despada.ImGui;
-using Despada.ImGui.UserInterface.Tabs;
 using ImGuiNET;
 
 namespace Despada.ImGui.UserInterface;
@@ -15,7 +14,6 @@ public static class MainMenu
 
     private static readonly Tab[] Tabs =
     [
-        new("\uF188", "Debug", ["Overlay", "Widgets"], DebugTab.Draw),
     ];
 
     private static int _activeTab;
