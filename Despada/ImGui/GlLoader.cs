@@ -71,4 +71,11 @@ internal static class GlLoader
         }
         return Marshal.GetDelegateForFunctionPointer<T>(p);
     }
+
+    /// <summary>Like <see cref="Load{T}"/>, for optional functions: returns null without logging.</summary>
+    public static T? TryLoad<T>(string name) where T : Delegate
+    {
+        var p = GetProc(name);
+        return p == 0 ? null : Marshal.GetDelegateForFunctionPointer<T>(p);
+    }
 }

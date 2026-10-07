@@ -11,26 +11,31 @@ namespace Despada.ImGui.Hook;
 public static class ClydeRenderHook
 {
     private static MethodInfo? _renderFrameMethod;
+    private static MethodBase? _target;
 
-    static MethodBase? TargetMethod()
+    // Harmony throws on a null TargetMethod() and aborts the remaining patches;
+    // decline the patch instead so a renamed engine method only disables the overlay.
+    static bool Prepare()
     {
         var clydeType = AccessTools.TypeByName("Robust.Client.Graphics.Clyde.Clyde");
         if (clydeType is null)
         {
             MarseyLogger.Fatal("[ClydeRenderHook] Could not find type 'Robust.Client.Graphics.Clyde.Clyde'");
-            return null;
+            return false;
         }
 
-        var method = AccessTools.Method(clydeType, "Render");
-        if (method is null)
+        _target = AccessTools.Method(clydeType, "Render");
+        if (_target is null)
         {
             MarseyLogger.Fatal("[ClydeRenderHook] Could not find method 'Render' on Clyde");
-            return null;
+            return false;
         }
 
-        MarseyLogger.Info($"[ClydeRenderHook] Target method resolved: {method.FullDescription()}");
-        return method;
+        MarseyLogger.Info($"[ClydeRenderHook] Target method resolved: {_target.FullDescription()}");
+        return true;
     }
+
+    static MethodBase TargetMethod() => _target!;
 
     [HarmonyTranspiler]
     static IEnumerable<CodeInstruction> Transpiler(

@@ -9,13 +9,17 @@ public static class MarseyEntry
 {
     public static void Entry()
     {
-        Harmony.DEBUG = false;
         MarseyLogger.Info("Entry for patching started.");
-        
-        if (!TryGetAssembly("Content.Client")) return;
-        
-        var subversionAssembly = Assembly.GetExecutingAssembly();
-        SubverterPatch.Harm.PatchAll(subversionAssembly);
+
+        // Entry runs from MarseyLoader's postfix on ModLoader.TryLoadModules, so content is
+        // already loaded by now; there's nothing to wait for.
+        if (FindAssembly("Content.Client") is null)
+        {
+            MarseyLogger.Fatal("Content.Client is not loaded — Despada disabled.");
+            return;
+        }
+
+        PatchAll(Assembly.GetExecutingAssembly());
 
         Sedition.Hide();
         Sedition.Apply(new Sedition.Manifest
@@ -24,20 +28,26 @@ public static class MarseyEntry
         });
     }
 
-    private static bool TryGetAssembly(string assembly)
+    // Same as Harmony.PatchAll, but one failing patch class no longer aborts the rest
+    // (and no exception escapes into the engine's module loading).
+    private static void PatchAll(Assembly asm)
     {
-        for (var loops = 0; loops < 50; loops++)
+        foreach (var type in AccessTools.GetTypesFromAssembly(asm))
         {
-            if (FindAssembly(assembly) != null)
-                return true;
-
-            Thread.Sleep(200);
+            try
+            {
+                SubverterPatch.Harm.CreateClassProcessor(type).Patch();
+            }
+            catch (Exception ex)
+            {
+                MarseyLogger.Fatal($"Patching {type.FullName} failed, feature disabled: {ex}");
+            }
         }
-        return false;
     }
+
     private static Assembly? FindAssembly(string assemblyName)
     {
         var asmList = AppDomain.CurrentDomain.GetAssemblies();
-        return asmList.FirstOrDefault(asm => asm.FullName?.Contains(assemblyName) == true);
+        return asmList.FirstOrDefault(asm => asm.GetName().Name == assemblyName);
     }
 }

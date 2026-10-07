@@ -37,37 +37,47 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # Значения из inputs/ref_name идут только через env и проверяются по формату:
+      # подставленные прямо в run: через ${{ }} они становятся частью скрипта (shell-инъекция).
       - name: Resolve version
         id: version
         shell: bash
+        env:
+          RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          tag="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          if [[ ! "$RAW_TAG" =~ ^v?[0-9]+(\.[0-9]+)*([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Некорректный тег релиза: '$RAW_TAG'"
+            exit 1
+          fi
+          echo "tag=$RAW_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${RAW_TAG#v}" >> "$GITHUB_OUTPUT"
 
       # publish, а не build: для библиотечного проекта только он кладёт рядом
       # зависимости из NuGet (ImGui.NET, 0Harmony) и папку runtimes/.
       - name: Publish
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           dotnet publish Despada/Despada.csproj -c Release -o publish \
-            -p:Version=${{ steps.version.outputs.version }} \
+            -p:Version="$VERSION" \
             -p:ContinuousIntegrationBuild=true
 
-      # Бинарей в релизе два: сам патч и ImGui.NET.
-      # Нативный cimgui вшит в Despada.dll как EmbeddedResource (NativeLoader),
-      # 0Harmony приходит от лаунчера — дублировать их не нужно.
+      # Бинарь в релизе один: Despada.dll. ImGui.NET и нативный cimgui вшиты в него
+      # как EmbeddedResource (EmbeddedAssemblies, NativeLoader), 0Harmony приходит от лаунчера.
       # Рядом едут лицензии, notices и указатель на Corresponding Source.
       - name: Package
         shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           mkdir -p dist/licenses
-          cp publish/Despada.dll publish/ImGui.NET.dll dist/
+          cp publish/Despada.dll dist/
           cp LICENSE.md THIRD-PARTY-NOTICES.md dist/
           cp licenses/OFL-1.1.txt licenses/MIT.txt dist/licenses/
 
           sha="$(git rev-parse HEAD)"
           {
-            echo "Despada ${{ steps.version.outputs.tag }}"
+            echo "Despada $TAG"
             echo "Copyright (C) 2026 ddepsadd"
             echo
             echo "Licensed under the GNU Affero General Public License v3.0 or later."
@@ -81,7 +91,7 @@ jobs:
             echo "  commit: ${sha}"
           } > dist/SOURCE.txt
 
-          (cd dist && sha256sum Despada.dll ImGui.NET.dll LICENSE.md \
+          (cd dist && sha256sum Despada.dll LICENSE.md \
             THIRD-PARTY-NOTICES.md SOURCE.txt \
             licenses/OFL-1.1.txt licenses/MIT.txt > SHA256SUMS.txt)
           ls -laR dist
@@ -89,16 +99,16 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" \
+          gh release create "$TAG" \
             dist/Despada.dll \
-            dist/ImGui.NET.dll \
             dist/LICENSE.md \
             dist/THIRD-PARTY-NOTICES.md \
             dist/SOURCE.txt \
             dist/licenses/OFL-1.1.txt \
             dist/licenses/MIT.txt \
             dist/SHA256SUMS.txt \
-            --title "${{ steps.version.outputs.tag }}" \
+            --title "$TAG" \
             --generate-notes \
             --verify-tag

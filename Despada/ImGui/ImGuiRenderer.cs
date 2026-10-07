@@ -30,6 +30,9 @@ public static class ImGuiRenderer
     public static volatile bool OverlayVisible = false;
     private static bool _prevOverlayVisible = false;
 
+    // True once the backend is dead for good; input hooks must stop capturing then.
+    public static bool Failed => _initFailed;
+
     public static bool ShowDemoWindow;
     public static bool ShowMetricsWindow;
     
@@ -50,8 +53,13 @@ public static class ImGuiRenderer
             _prevOverlayVisible = OverlayVisible;
             SetCursorVisible(OverlayVisible);
 
-            if (OverlayVisible)
-                TryStartTextInput();
+            // Losing focus makes ImGui release every held key/button, so nothing stays
+            // "pressed" while the overlay is hidden and key-ups go to the game.
+            if (_initialized)
+                ImGuiNET.ImGui.GetIO().AddFocusEvent(OverlayVisible);
+
+            if (!OverlayVisible)
+                UpdateSdlTextInput(false);
         }
 
         bool hasToasts = !_pendingToasts.IsEmpty || _activeToasts.Count > 0;
@@ -111,7 +119,7 @@ public static class ImGuiRenderer
 
                 UpdateSdlTextInput(io.WantTextInput);
 
-                DrawToasts(elapsedSec);
+                WindowGuard.Draw("Toasts", () => DrawToasts(elapsedSec));
 
                 if (OverlayVisible)
                     DrawUI();
@@ -126,9 +134,24 @@ public static class ImGuiRenderer
         }
         catch (Exception ex)
         {
-            MarseyLogger.Fatal($"[ImGuiRenderer] RenderFrame: {ex}");
-            _initFailed = true;
+            FailHard("RenderFrame", ex);
         }
+    }
+
+    // Backend-level failure: disable the overlay for good and give the game its input back.
+    private static void FailHard(string where, Exception ex)
+    {
+        MarseyLogger.Fatal($"[ImGuiRenderer] {where}: {ex}");
+        _initFailed = true;
+
+        if (OverlayVisible)
+        {
+            OverlayVisible      = false;
+            _prevOverlayVisible = false;
+            SetCursorVisible(false);
+        }
+
+        ImGuiInputHook.Reset();
     }
 
     private static bool _sdlTextInputActive = false;
@@ -139,10 +162,19 @@ public static class ImGuiRenderer
         _sdlTextInputActive = wantTextInput;
 
         if (wantTextInput)
-            TryStartTextInput();
+            CallWindowingTextInput("TextInputStart");
+        // Leave SDL text input on if a game text field (chat, etc.) still has focus.
+        else if (!GameHasKeyboardFocus())
+            CallWindowingTextInput("TextInputStop");
     }
 
-    private static void TryStartTextInput()
+    private static bool GameHasKeyboardFocus()
+    {
+        var ui = ResolveFromIoC("Robust.Client.UserInterface.IUserInterfaceManager");
+        return ui is not null && AccessTools.Property(ui.GetType(), "KeyboardFocused")?.GetValue(ui) is not null;
+    }
+
+    private static void CallWindowingTextInput(string method)
     {
         try
         {
@@ -171,14 +203,14 @@ public static class ImGuiRenderer
             }
             if (mainWindow is null) return;
 
-            AccessTools.Method(windowing.GetType(), "TextInputStart")
+            AccessTools.Method(windowing.GetType(), method)
                        ?.Invoke(windowing, [mainWindow]);
 
-            MarseyLogger.Info("[ImGuiRenderer] SDL TextInputStart called.");
+            MarseyLogger.Info($"[ImGuiRenderer] SDL {method} called.");
         }
         catch (Exception ex)
         {
-            MarseyLogger.Warn($"[ImGuiRenderer] TryStartTextInput: {ex.Message}");
+            MarseyLogger.Warn($"[ImGuiRenderer] {method}: {ex.Message}");
         }
     }
 
@@ -238,7 +270,9 @@ public static class ImGuiRenderer
                 ImGuiNET.ImGui.Separator();
 
                 ImGuiNET.ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 1f, 1f, alpha * 0.9f));
-                ImGuiNET.ImGui.TextWrapped(toast.Body);
+                ImGuiNET.ImGui.PushTextWrapPos(0f);
+                ImGuiNET.ImGui.TextUnformatted(toast.Body);
+                ImGuiNET.ImGui.PopTextWrapPos();
                 ImGuiNET.ImGui.PopStyleColor();
             }
             ImGuiNET.ImGui.End();
@@ -267,6 +301,8 @@ public static class ImGuiRenderer
             UpdateScale();
 
             var io = ImGuiNET.ImGui.GetIO();
+            ConfigureIO(io);
+            WindowGuard.Initialize();
             io.DisplaySize             = new Vector2(_screenW / UiScale.K, _screenH / UiScale.K);
             io.DisplayFramebufferScale = new Vector2(UiScale.K, UiScale.K);
 
@@ -284,9 +320,26 @@ public static class ImGuiRenderer
         }
         catch (Exception ex)
         {
-            MarseyLogger.Fatal($"[ImGuiRenderer] Initialization failed: {ex}");
-            _initFailed = true;
+            FailHard("Initialization failed", ex);
         }
+    }
+
+    private static unsafe void ConfigureIO(ImGuiIOPtr io)
+    {
+        // With base-vertex draws RenderDrawData honours VtxOffset, so draw lists may exceed 64k
+        // vertices. Without it ImGui splits them itself.
+        if (GlBackend.HasBaseVertex)
+            io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
+
+        // The bundled cimgui is built with asserts: a misused API (missing End/Pop...) would
+        // abort() the game. Recover and report instead.
+        io.ConfigErrorRecovery               = true;
+        io.ConfigErrorRecoveryEnableAssert   = false;
+        io.ConfigErrorRecoveryEnableDebugLog = true;
+        io.ConfigErrorRecoveryEnableTooltip  = true;
+
+        // Don't write imgui.ini into the game's working directory.
+        io.NativePtr->IniFilename = null;
     }
 
     private static GCHandle _fontDataHandle;
@@ -369,9 +422,15 @@ public static class ImGuiRenderer
 
     private static ushort[] BuildGlyphRanges() =>
     [
-        0x0020, 0x00FF,
-        0x0400, 0x052F,
-        0xE000, 0xF8FF,
+        0x0020, 0x00FF, // Basic Latin + Latin-1
+        0x0400, 0x052F, // Cyrillic + Supplement
+        0x2000, 0x206F, // General Punctuation: — – … “ ” „ ‘ ’ •
+        0x20A0, 0x20CF, // Currency: ₽ €
+        0x2100, 0x214F, // Letterlike: № ™
+        0x2190, 0x21FF, // Arrows
+        0x2500, 0x259F, // Box Drawing + Block Elements
+        0x25A0, 0x25FF, // Geometric Shapes
+        0xE000, 0xF8FF, // Private Use (Nerd Font icons)
         0,
     ];
 
@@ -380,7 +439,7 @@ public static class ImGuiRenderer
     private static uint _attribPos, _attribUv, _attribColor;
     private static int  _uniformTex, _uniformProjMtx;
 
-    private const string VertSrc = @"#version 130
+    private const string VertSrc = @"
     uniform mat4 ProjMtx;
     in vec2 Position;
     in vec2 UV;
@@ -393,7 +452,7 @@ public static class ImGuiRenderer
         gl_Position = ProjMtx * vec4(Position.xy, 0, 1);
     }";
 
-    private const string FragSrc = @"#version 130
+    private const string FragSrc = @"
     uniform sampler2D Texture;
     in vec2 Frag_UV;
     in vec4 Frag_Color;
@@ -404,7 +463,9 @@ public static class ImGuiRenderer
 
     private static void CreateGlObjects()
     {
-        _shader         = GlBackend.CreateShader(VertSrc, FragSrc);
+        var header = GlBackend.ShaderHeader();
+        MarseyLogger.Info($"[ImGuiRenderer] GL: {GlBackend.GetString(0x1F02)}; shader header: {header.Trim()}");
+        _shader         = GlBackend.CreateShader(header + VertSrc, header + FragSrc);
         _uniformTex     = GlBackend.GetUniformLocation(_shader, "Texture");
         _uniformProjMtx = GlBackend.GetUniformLocation(_shader, "ProjMtx");
         _attribPos      = (uint)GlBackend.GetAttribLocation(_shader, "Position");
@@ -430,9 +491,13 @@ public static class ImGuiRenderer
     {
         if (drawData.CmdListsCount == 0) return;
 
-        var fbWidth  = (int)(drawData.DisplaySize.X * drawData.FramebufferScale.X);
-        var fbHeight = (int)(drawData.DisplaySize.Y * drawData.FramebufferScale.Y);
+        var fbWidth  = (int)MathF.Round(drawData.DisplaySize.X * drawData.FramebufferScale.X);
+        var fbHeight = (int)MathF.Round(drawData.DisplaySize.Y * drawData.FramebufferScale.Y);
         if (fbWidth <= 0 || fbHeight <= 0) return;
+
+        // Clyde leaves scissor disabled after its UI pass; without this every clip rect is ignored.
+        // GlStateGuard.Restore() puts it back the way Clyde had it.
+        GlBackend.Enable(0x0C11 /*GL_SCISSOR_TEST*/);
 
         GlBackend.UseProgram(_shader);
         GlBackend.Uniform1i(_uniformTex, 0);
@@ -483,6 +548,9 @@ public static class ImGuiRenderer
                     (cmd.ClipRect.Z - clipOff.X) * clipScale.X,
                     (cmd.ClipRect.W - clipOff.Y) * clipScale.Y);
 
+                clipMin = Vector2.Max(clipMin, Vector2.Zero);
+                clipMax = Vector2.Min(clipMax, new Vector2(fbWidth, fbHeight));
+
                 if (clipMax.X <= clipMin.X || clipMax.Y <= clipMin.Y) continue;
 
                 GlBackend.Scissor(
@@ -493,17 +561,19 @@ public static class ImGuiRenderer
 
                 GlBackend.ActiveTexture(0x84C0);
                 GlBackend.BindTexture(0x0DE1, (uint)cmd.TextureId);
-                GlBackend.DrawElementsBaseVertex(
-                    0x0004, (int)cmd.ElemCount, 0x1403,
-                    (nint)(cmd.IdxOffset * sizeof(ushort)),
-                    (int)cmd.VtxOffset);
+
+                var idxOffset = (nint)(cmd.IdxOffset * sizeof(ushort));
+                if (GlBackend.HasBaseVertex)
+                    GlBackend.DrawElementsBaseVertex(0x0004, (int)cmd.ElemCount, 0x1403, idxOffset, (int)cmd.VtxOffset);
+                else
+                    GlBackend.DrawElements(0x0004, (int)cmd.ElemCount, 0x1403, idxOffset);
             }
         }
     }
 
     private static void DrawUI()
     {
-        MainMenu.Draw();
+        WindowGuard.Draw("Despada", MainMenu.Draw);
 
         if (ShowMetricsWindow) ImGuiNET.ImGui.ShowMetricsWindow(ref ShowMetricsWindow);
         if (ShowDemoWindow)    ImGuiNET.ImGui.ShowDemoWindow(ref ShowDemoWindow);

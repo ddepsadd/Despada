@@ -31,7 +31,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+        <!-- Compile against it, but don't copy it next to Despada.dll: it is embedded below. -->
+        <PackageReference Include="ImGui.NET" Version="1.91.6.1" GeneratePathProperty="true" ExcludeAssets="runtime" />
         <PackageReference Include="Lib.Harmony" Version="2.4.2" />
     </ItemGroup>
 
@@ -42,6 +43,7 @@
         <EmbeddedResource Include="Native\libcimgui.so" />
         <EmbeddedResource Include="Assets\icon.png" />
         <EmbeddedResource Include="Assets\JetBrainsMonoNerdFontMono-Regular.ttf" />
+        <EmbeddedResource Include="$(PkgImGui_NET)\lib\net8.0\ImGui.NET.dll" LogicalName="Despada.Deps.ImGui.NET.dll" />
     </ItemGroup>
 
 </Project>

@@ -65,6 +65,16 @@ public static class MainMenu
         ImGuiNET.ImGui.PopStyleColor(2);
         ImGuiNET.ImGui.PopStyleVar(2);
 
+        if (Tabs.Length == 0)
+        {
+            ImGuiNET.ImGui.TextUnformatted("No tabs registered.");
+            ImGuiNET.ImGui.End();
+            return;
+        }
+
+        _activeTab    = Math.Clamp(_activeTab, 0, Tabs.Length - 1);
+        _activeSubTab = Math.Clamp(_activeSubTab, 0, Math.Max(0, Tabs[_activeTab].SubTabs.Length - 1));
+
         var winPos = ImGuiNET.ImGui.GetWindowPos();
         var dl     = ImGuiNET.ImGui.GetWindowDrawList();
         var font   = ImGuiNET.ImGui.GetFont();

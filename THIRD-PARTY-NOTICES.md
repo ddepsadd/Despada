@@ -10,7 +10,7 @@ Full license texts are in `licenses/`.
 
 ## ImGui.NET
 
-Redistributed as `ImGui.NET.dll` alongside release binaries.
+Embedded into `Despada.dll` as the resource `Despada.Deps.ImGui.NET.dll`.
 Upstream: https://github.com/ImGuiNET/ImGui.NET
 License: MIT (`licenses/MIT.txt`)
 
